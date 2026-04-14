@@ -163,8 +163,47 @@ function showAltitudeMeter(q) {
   }
 }
 
+// ===== NUMBER PAD =====
+function handleNumPress(n) {
+  if (n === 'clear') {
+    selectedAnswer = null;
+    document.getElementById('answer-value').textContent = '—';
+    document.getElementById('answer-display').classList.remove('selected');
+    document.getElementById('btn-submit').disabled = true;
+    return;
+  }
+
+  const digit = parseInt(n, 10);
+
+  // Allow two-digit answers (for results up to 19)
+  if (selectedAnswer === null) {
+    selectedAnswer = digit;
+  } else if (selectedAnswer < 10) {
+    // Append digit to form two-digit number
+    const twoDigit = selectedAnswer * 10 + digit;
+    if (twoDigit <= 20) {
+      selectedAnswer = twoDigit;
+    } else {
+      selectedAnswer = digit; // start fresh
+    }
+  } else {
+    selectedAnswer = digit; // start fresh if already 2 digits
+  }
+
+  document.getElementById('answer-value').textContent = selectedAnswer;
+  document.getElementById('answer-display').classList.add('selected');
+  document.getElementById('btn-submit').disabled = false;
+}
+
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
   initEntry();
   showScreen('screen-entry');
+
+  // Number pad
+  document.querySelectorAll('.num-btn[data-n]').forEach(btn => {
+    btn.addEventListener('click', () => handleNumPress(btn.dataset.n));
+  });
+
+  document.getElementById('btn-submit').addEventListener('click', handleSubmit);
 });
