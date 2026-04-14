@@ -181,7 +181,7 @@ function handleNumPress(n) {
   } else if (selectedAnswer < 10) {
     // Append digit to form two-digit number
     const twoDigit = selectedAnswer * 10 + digit;
-    if (twoDigit <= 20) {
+    if (twoDigit <= 19) {
       selectedAnswer = twoDigit;
     } else {
       selectedAnswer = digit; // start fresh
