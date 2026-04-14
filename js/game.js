@@ -53,7 +53,7 @@ function startShift() {
              || CURRICULUM.stages[CURRICULUM.stages.length - 1];
 
   // Shuffle and take QUESTIONS_PER_SHIFT questions
-  const pool = [...stage.questions];
+  const pool = stage.questions.map(q => ({ ...q, visual: stage.visual }));
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -129,6 +129,7 @@ function showRadarPlanes(q) {
     [50, 25], [75, 35], [80, 60], [65, 80],
     [35, 80], [20, 60], [25, 35], [50, 65],
     [60, 45], [40, 45], [70, 55], [30, 55],
+    [55, 15], [45, 85], [85, 45],
   ];
 
   for (let i = 0; i < total; i++) {
@@ -154,8 +155,8 @@ function showAltitudeMeter(q) {
 
   // Show decomposition for altitude-type questions
   const decompose = document.getElementById('alt-decompose');
-  if (q.hint === 'decompose' && altitude > 10) {
-    document.getElementById('decompose-units').textContent = altitude - 10;
+  if (q.hint === 'decompose' && (altitude > 10 || q.result > 10)) {
+    document.getElementById('decompose-units').textContent = (altitude > 10 ? altitude : q.result) - 10;
     decompose.classList.remove('hidden');
   } else {
     decompose.classList.add('hidden');
