@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>מגדל הפיקוח</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- Screen 1: Entry -->
+  <div id="screen-entry" class="screen">
+    <div class="screen-content">
+      <h1 class="game-title">מגדל הפיקוח</h1>
+      <p class="game-subtitle">✈️ ברוך הבא, פקח!</p>
+      <div class="entry-form">
+        <label for="player-name">מה שמך?</label>
+        <input type="text" id="player-name" placeholder="הקלד את שמך" maxlength="12">
+        <button id="btn-start" class="btn-primary">התחל משמרת</button>
+        <div class="entry-nav">
+          <button id="btn-show-album" class="btn-secondary">אלבום מטוסים ✈️</button>
+          <button id="btn-show-map"   class="btn-secondary">מפת נמלים 🗺️</button>
+        </div>
+      </div>
+      <div id="entry-rank" class="rank-badge hidden"></div>
+    </div>
+  </div>
+
+  <!-- Screen 2: Game -->
+  <div id="screen-game" class="screen hidden">
+    <div class="game-header">
+      <span id="hdr-rank" class="rank-small"></span>
+      <span id="hdr-name" class="player-name-small"></span>
+      <span id="hdr-shift" class="shift-label"></span>
+      <span id="hdr-progress" class="shift-progress"></span>
+    </div>
+
+    <div class="game-main">
+      <!-- Radar / Visual area -->
+      <div id="radar-area" class="radar-area">
+        <div id="radar-screen" class="radar-screen">
+          <div class="radar-sweep"></div>
+          <div id="radar-planes" class="radar-planes"></div>
+        </div>
+        <!-- Altitude meter (shown for altitude-type questions) -->
+        <div id="altitude-meter" class="altitude-meter hidden">
+          <div class="alt-scale">
+            <div id="alt-fill" class="alt-fill"></div>
+            <div class="alt-safety-line">
+              <span class="alt-safety-label">רמת ביטחון — 10</span>
+            </div>
+          </div>
+          <div id="alt-number" class="alt-number">0</div>
+          <div id="alt-decompose" class="alt-decompose hidden">
+            <span class="decompose-ten">10</span>
+            <span class="decompose-plus">+</span>
+            <span id="decompose-units" class="decompose-units">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Radio message -->
+      <div id="radio-bubble" class="radio-bubble">
+        <span class="radio-icon">📻</span>
+        <span id="radio-text" class="radio-text"></span>
+      </div>
+
+      <!-- Hint area -->
+      <div id="hint-area" class="hint-area hidden">
+        <div id="hint-dots" class="hint-dots"></div>
+      </div>
+    </div>
+
+    <!-- Number pad -->
+    <div class="numpad-area">
+      <div id="answer-display" class="answer-display">
+        <span id="answer-value">—</span>
+      </div>
+      <div class="numpad">
+        <button class="num-btn" data-n="1">1</button>
+        <button class="num-btn" data-n="2">2</button>
+        <button class="num-btn" data-n="3">3</button>
+        <button class="num-btn" data-n="4">4</button>
+        <button class="num-btn" data-n="5">5</button>
+        <button class="num-btn" data-n="6">6</button>
+        <button class="num-btn" data-n="7">7</button>
+        <button class="num-btn" data-n="8">8</button>
+        <button class="num-btn" data-n="9">9</button>
+        <button class="num-btn num-clear" data-n="clear">✕</button>
+        <button class="num-btn" data-n="0">0</button>
+        <button id="btn-submit" class="num-btn num-submit" disabled>✔</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen 3: Shift Report -->
+  <div id="screen-report" class="screen hidden">
+    <div class="screen-content">
+      <h2 class="report-title">דוח משמרת</h2>
+      <div id="report-planes" class="report-planes"></div>
+      <p id="report-msg" class="report-msg"></p>
+      <div id="report-new-plane" class="new-plane-badge hidden"></div>
+      <div id="report-rank-up" class="rank-up hidden"></div>
+      <button id="btn-continue" class="btn-primary">המשך</button>
+    </div>
+  </div>
+
+  <!-- Screen 4: Plane Album -->
+  <div id="screen-album" class="screen hidden">
+    <div class="screen-content">
+      <h2>אלבום המטוסים שלי</h2>
+      <div id="album-grid" class="album-grid"></div>
+      <button id="btn-album-back" class="btn-secondary">חזור</button>
+    </div>
+  </div>
+
+  <!-- Screen 5: Airport Map -->
+  <div id="screen-map" class="screen hidden">
+    <div class="screen-content">
+      <h2>מפת הנמלים</h2>
+      <div id="map-stages" class="map-stages"></div>
+      <button id="btn-map-back" class="btn-secondary">חזור</button>
+    </div>
+  </div>
+
+  <script src="js/curriculum.js"></script>
+  <script src="js/progress.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
