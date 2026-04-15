@@ -66,15 +66,15 @@ const CURRICULUM = {
       visual: 'altitude',
       safetyStation: true,
       questions: [
-        { type: 'subtraction', a: 11, b: 1,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ, אֲנִי בְּגוֹבַה {a}. כַּמָּה יְחִידוֹת גוֹבַה לְהוֹרִיד כְּדֵי לְהַגִּיעַ לְרָמַת הַבִּטָּחוֹן?' },
-        { type: 'subtraction', a: 12, b: 2,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ! גוֹבַה {a}. כַּמָּה לְהוֹרִיד כְּדֵי לְהַגִּיעַ לְגוֹבַהּ הַבִּטָּחוֹן — גוֹבַה 10?' },
+        { type: 'subtraction', a: 11, b: 1,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ, אֲנִי בְּגוֹבַה {a}. צָרִיךְ לְהַגִּיעַ לְרָמַת הַבִּטָּחוֹן — גוֹבַה 10. כַּמָּה לְהוֹרִיד?' },
+        { type: 'subtraction', a: 12, b: 2,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ! גוֹבַה {a}. כַּמָּה לְהוֹרִיד כְּדֵי לְהַגִּיעַ לְגוֹבַה הַבִּטָּחוֹן — גוֹבַה 10?' },
         { type: 'subtraction', a: 13, b: 3,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ, גוֹבַה {a}. כַּמָּה יְחִידוֹת לָרֶדֶת כְּדֵי לְהַגִּיעַ לְרָמַת הַבִּטָּחוֹן?' },
         { type: 'subtraction', a: 14, b: 4,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ! אֲנִי בְּגוֹבַה {a}. כַּמָּה צָרִיךְ לְהוֹרִיד כְּדֵי לְהַגִּיעַ לְגוֹבַה 10?' },
-        { type: 'subtraction', a: 15, b: 5,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ, גוֹבַה {a}. כַּמָּה יְחִידוֹת גוֹבַה יֵשׁ לִי מֵעַל רָמַת הַבִּטָּחוֹן?' },
+        { type: 'subtraction', a: 15, b: 5,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ, גוֹבַה {a}. הַמָּטוֹס חַיָּב לַעֲצוֹר בְּגוֹבַה 10. כַּמָּה לְהוֹרִיד?' },
         { type: 'subtraction', a: 16, b: 6,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ! גוֹבַה {a}. כַּמָּה לְהוֹרִיד כְּדֵי לְהַגִּיעַ לְרָמַת הַבִּטָּחוֹן?' },
         { type: 'subtraction', a: 17, b: 7,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ, אֲנִי בְּגוֹבַה {a}. כַּמָּה יְחִידוֹת לְהוֹרִיד כְּדֵי לְהַגִּיעַ לְגוֹבַה 10?' },
         { type: 'subtraction', a: 18, b: 8,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ! גוֹבַה {a}. כַּמָּה לָרֶדֶת עַד לְרָמַת הַבִּטָּחוֹן?' },
-        { type: 'subtraction', a: 19, b: 9,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ, גוֹבַה {a}. כַּמָּה יְחִידוֹת גוֹבַה יֵשׁ לִי מֵעַל גוֹבַה 10?' },
+        { type: 'subtraction', a: 19, b: 9,  result: 10, hint: 'decompose', radioText: 'מִגְדַּל הַפִּיקּוּחַ, גוֹבַה {a}. כַּמָּה יְחִידוֹת גוֹבַה לְהוֹרִיד כְּדֵי לַעֲצוֹר בְּגוֹבַה 10?' },
       ]
     },
     {
