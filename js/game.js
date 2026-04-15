@@ -436,6 +436,67 @@ function showReport(correct, newPlane, rankUp) {
   showScreen('screen-report');
 }
 
+// ===== ALBUM SCREEN =====
+function showAlbum() {
+  const grid = document.getElementById('album-grid');
+  grid.innerHTML = '';
+  PLANE_TYPES.forEach(p => {
+    const slot = document.createElement('div');
+    const collected = saveData.planesCollected.includes(p.id);
+    slot.className = 'album-slot' + (collected ? '' : ' empty');
+    slot.textContent = collected ? p.emoji : '?';
+    slot.title = collected ? p.name : '???';
+    grid.appendChild(slot);
+  });
+
+  document.getElementById('btn-album-back').onclick = () => {
+    showScreen('screen-entry');
+    initEntry();
+  };
+
+  showScreen('screen-album');
+}
+
+// ===== MAP SCREEN =====
+function showMap() {
+  const container = document.getElementById('map-stages');
+  container.innerHTML = '';
+
+  CURRICULUM.stages.forEach(stage => {
+    const completed = saveData.stagesCompleted.includes(stage.id);
+    const current   = stage.id === saveData.currentStage;
+    const locked    = stage.id > saveData.currentStage;
+
+    const row = document.createElement('div');
+    row.className = 'map-stage' +
+      (completed ? ' completed' : '') +
+      (current   ? ' current'   : '') +
+      (locked    ? ' locked'    : '');
+
+    const icon   = document.createElement('span');
+    icon.className = 'map-stage-icon';
+    icon.textContent = completed ? '✅' : (current ? '👉' : '🔒');
+
+    const name   = document.createElement('span');
+    name.className = 'map-stage-name';
+    name.textContent = `נמל ${stage.id}: ${stage.title}`;
+
+    const status = document.createElement('span');
+    status.className = 'map-stage-status';
+    status.textContent = completed ? 'הושלם' : (current ? 'פעיל' : 'נעול');
+
+    row.append(icon, name, status);
+    container.appendChild(row);
+  });
+
+  document.getElementById('btn-map-back').onclick = () => {
+    showScreen('screen-entry');
+    initEntry();
+  };
+
+  showScreen('screen-map');
+}
+
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
   initEntry();
@@ -447,4 +508,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-submit').addEventListener('click', handleSubmit);
+
+  document.getElementById('btn-show-album').addEventListener('click', () => {
+    saveData = PROGRESS.load();
+    showAlbum();
+  });
+
+  document.getElementById('btn-show-map').addEventListener('click', () => {
+    saveData = PROGRESS.load();
+    showMap();
+  });
 });
