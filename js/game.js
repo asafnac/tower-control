@@ -83,10 +83,9 @@ function formatRadioText(template, q) {
 
 function loadQuestion(q) {
   // Stop any ongoing speech from the previous question
-  if (window.speechSynthesis) {
-    speechSynthesis.cancel();
-    document.getElementById('btn-speak').classList.remove('speaking');
-  }
+  if (window.responsiveVoice) responsiveVoice.cancel();
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  document.getElementById('btn-speak').classList.remove('speaking');
 
   currentQ = q;
   attempts = 0;
@@ -522,23 +521,29 @@ if (window.speechSynthesis) {
 }
 
 function speakQuestion() {
-  if (!window.speechSynthesis) return;
-  speechSynthesis.cancel();
-
-  // Strip nikud (U+05B0–U+05C7) — TTS engines handle plain Hebrew better
+  // Strip nikud (U+05B0–U+05C7) — TTS engines read plain Hebrew more reliably
   const raw = formatRadioText(currentQ.radioText, currentQ);
   const text = raw.replace(/[\u05B0-\u05C7]/g, '');
 
+  const btn = document.getElementById('btn-speak');
+  btn.classList.add('speaking');
+  const done = () => btn.classList.remove('speaking');
+
+  // Primary: ResponsiveVoice — includes Hebrew, no OS voice needed
+  if (window.responsiveVoice) {
+    responsiveVoice.speak(text, 'Hebrew Female', { rate: 0.9, onend: done, onerror: done });
+    return;
+  }
+
+  // Fallback: Web Speech API (requires he-IL voice installed on OS)
+  if (!window.speechSynthesis) { done(); return; }
+  speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = 'he-IL';
   utter.rate = 0.85;
   if (_hebrewVoice) utter.voice = _hebrewVoice;
-
-  const btn = document.getElementById('btn-speak');
-  btn.classList.add('speaking');
-  utter.onend  = () => btn.classList.remove('speaking');
-  utter.onerror = () => btn.classList.remove('speaking');
-
+  utter.onend  = done;
+  utter.onerror = done;
   speechSynthesis.speak(utter);
 }
 
