@@ -258,6 +258,12 @@ function showWrong() {
   document.getElementById('radio-text').textContent =
     retryMessages[attempts - 1] || retryMessages[0];
 
+  // Restore the original question after a short pause
+  const originalText = formatRadioText(currentQ.radioText, currentQ);
+  setTimeout(() => {
+    document.getElementById('radio-text').textContent = originalText;
+  }, 1500);
+
   // Reset answer for retry
   selectedAnswer = null;
   document.getElementById('answer-value').textContent = '—';
