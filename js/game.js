@@ -352,19 +352,18 @@ function nextQuestion() {
 
 function endShift() {
   saveData.shiftsCompleted = (saveData.shiftsCompleted || 0) + 1;
-  const oldStage = saveData.currentStage;
+  saveData.currentStageShifts = (saveData.currentStageShifts || 0) + 1;
 
-  // Advance stage when 3 consecutive shifts have high accuracy (≥6/8 correct)
-  // For simplicity in this version: advance after every 2 shifts on same stage
-  const stageShifts = saveData.shiftsCompleted;
-  const shouldAdvance = correctCount >= 6 && (stageShifts % 2 === 0);
+  // Advance after every 2 shifts on this stage with ≥6/8 correct
+  const shouldAdvance = correctCount >= 6 && (saveData.currentStageShifts % 2 === 0);
 
   let rankUp = false;
   let newPlane = null;
 
   if (shouldAdvance && saveData.currentStage < 7) {
     const oldRank = PROGRESS.getRankForStage(saveData.currentStage).name;
-    saveData = PROGRESS.completeStage(saveData, saveData.currentStage);
+    PROGRESS.completeStage(saveData, saveData.currentStage);
+    saveData.currentStageShifts = 0;
     const newRank = PROGRESS.getRankForStage(saveData.currentStage).name;
     rankUp = (newRank !== oldRank);
   }
@@ -373,7 +372,7 @@ function endShift() {
   const uncollected = PLANE_TYPES.filter(p => !saveData.planesCollected.includes(p.id));
   if (uncollected.length > 0) {
     const awarded = uncollected[Math.floor(Math.random() * uncollected.length)];
-    saveData = PROGRESS.addPlane(saveData, awarded.id);
+    PROGRESS.addPlane(saveData, awarded.id);
     newPlane = awarded;
   }
 
@@ -389,20 +388,27 @@ function showReport(correct, newPlane, rankUp) {
   const rankEl    = document.getElementById('report-rank-up');
   const btnCont   = document.getElementById('btn-continue');
 
-  // Show plane emojis for each correct answer
+  // Show plane emojis for each correct answer (always show at least one)
   planesEl.innerHTML = '';
-  for (let i = 0; i < correct; i++) {
+  const displayPlanes = Math.max(correct, 1);
+  for (let i = 0; i < displayPlanes; i++) {
     const span = document.createElement('span');
     span.textContent = '✈️';
     planesEl.appendChild(span);
   }
 
-  const msgs = [
-    `היום נחתו בבטחה ${correct} מטוסים. כל הכבוד, ${saveData.playerName}!`,
-    `משמרת מצוינת! ${correct} מטוסים נחתו בשלום תודה לך!`,
-    `עבודה טובה, פקח! ${correct} נחיתות בטוחות היום.`,
-  ];
-  msgEl.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+  let msg;
+  if (correct === 0) {
+    msg = `משמרת טובה, ${saveData.playerName}! המשך להתאמן — אתה הולך להצליח!`;
+  } else {
+    const msgs = [
+      `היום נחתו בבטחה ${correct} מטוסים. כל הכבוד, ${saveData.playerName}!`,
+      `משמרת מצוינת! ${correct} מטוסים נחתו בשלום תודה לך!`,
+      `עבודה טובה, פקח! ${correct} נחיתות בטוחות היום.`,
+    ];
+    msg = msgs[Math.floor(Math.random() * msgs.length)];
+  }
+  msgEl.textContent = msg;
 
   if (newPlane) {
     planeEl.textContent = `מטוס חדש באלבום: ${newPlane.emoji} ${newPlane.name}`;

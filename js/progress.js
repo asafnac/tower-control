@@ -28,6 +28,7 @@ const PROGRESS = {
       planesCollected: [],
       stagesCompleted: [],
       shiftsCompleted: 0,
+      currentStageShifts: 0,
       rank: 'מתלמד'
     };
   },
