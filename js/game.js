@@ -215,11 +215,49 @@ function handleSubmit() {
   }
 }
 
+function showCelebration() {
+  const overlay  = document.getElementById('celebrate-overlay');
+  const nameEl   = document.getElementById('celebrate-name');
+  const confetti = document.getElementById('celebrate-confetti');
+
+  nameEl.textContent = saveData.playerName + '!';
+
+  // Confetti burst
+  confetti.innerHTML = '';
+  const colors = ['#00ff41','#ff9500','#00bfff','#ff6b9d','#fff700','#cc44ff'];
+  for (let i = 0; i < 32; i++) {
+    const p = document.createElement('div');
+    p.className = 'cel-cp';
+    p.style.left             = (Math.random() * 100) + '%';
+    p.style.width            = (6 + Math.random() * 7) + 'px';
+    p.style.height           = (6 + Math.random() * 7) + 'px';
+    p.style.background       = colors[i % colors.length];
+    p.style.borderRadius     = Math.random() > .45 ? '50%' : '2px';
+    p.style.animationDelay    = (Math.random() * .35) + 's';
+    p.style.animationDuration = (.8 + Math.random() * .9) + 's';
+    confetti.appendChild(p);
+  }
+
+  overlay.classList.add('active');
+
+  // Auto-speak the congratulation
+  const celebText = 'כל הכבוד ' + saveData.playerName + '! אתה פקח מצויין!';
+  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=he&client=tw-ob&q='
+    + encodeURIComponent(celebText);
+  new Audio(url).play().catch(() => {});
+
+  setTimeout(() => {
+    overlay.classList.remove('active');
+    setTimeout(() => { confetti.innerHTML = ''; }, 300);
+  }, 1700);
+}
+
 function showCorrect() {
   document.getElementById('btn-submit').disabled = true;
   correctCount++;
   const bubble = document.getElementById('radio-bubble');
   bubble.classList.add('correct');
+  showCelebration();
 
   const responses = [
     'מְצֻיָּן מִגְדַּל הַפִּיקּוּחַ! יוֹרְדִים לִנְחִיתָה!',
@@ -241,8 +279,8 @@ function showCorrect() {
     animateAltitudeChange(currentQ.result);
   }
 
-  // Move to next question after delay
-  setTimeout(nextQuestion, 1800);
+  // Move to next question after celebration ends
+  setTimeout(nextQuestion, 2100);
 }
 
 function showWrong() {

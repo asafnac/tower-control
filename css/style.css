@@ -638,6 +638,95 @@ body {
 .map-stage-name { font-size: 1rem; font-weight: 600; flex: 1; }
 .map-stage-status { font-size: 0.9rem; color: var(--color-text-dim); }
 
+/* ===== CELEBRATION OVERLAY ===== */
+.celebrate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 4, 14, .72);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .22s ease;
+}
+
+.celebrate-overlay.active { opacity: 1; }
+
+.celebrate-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  transform: scale(.4);
+  transition: transform .35s cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.celebrate-overlay.active .celebrate-content { transform: scale(1); }
+
+.celebrate-plane {
+  font-size: 5rem;
+  display: block;
+  animation: cel-plane 1.6s ease-in-out;
+}
+
+@keyframes cel-plane {
+  0%   { transform: translateX(-120px) rotate(-12deg); }
+  55%  { transform: translateX(0)      rotate(0deg);   }
+  100% { transform: translateX(110px)  rotate(12deg);  }
+}
+
+.celebrate-bravo {
+  font-size: 3rem;
+  font-weight: 900;
+  color: var(--color-radar-green);
+  text-shadow: 0 0 22px rgba(0,255,65,.9), 0 0 50px rgba(0,255,65,.4);
+  margin: 0;
+  animation: cel-glow 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes cel-glow {
+  from { text-shadow: 0 0 22px rgba(0,255,65,.9), 0 0 50px rgba(0,255,65,.4); }
+  to   { text-shadow: 0 0 36px rgba(0,255,65,1),  0 0 80px rgba(0,255,65,.7); }
+}
+
+.celebrate-name {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--color-safety);
+  text-shadow: 0 0 18px rgba(255,149,0,.9);
+  margin: 0;
+}
+
+.celebrate-sub {
+  font-size: 1.6rem;
+  color: var(--color-text);
+  margin: 0;
+}
+
+/* Confetti pieces */
+.celebrate-confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.cel-cp {
+  position: absolute;
+  top: -12px;
+  border-radius: 2px;
+  animation: cel-fall linear forwards;
+}
+
+@keyframes cel-fall {
+  0%   { transform: translateY(0)     rotate(0deg);   opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateY(105vh) rotate(560deg); opacity: 0; }
+}
+
 /* ===== AIRPORT BACKGROUND SCENE ===== */
 .airport-bg {
   position: fixed;
