@@ -213,6 +213,7 @@ function handleSubmit() {
 }
 
 function showCorrect() {
+  document.getElementById('btn-submit').disabled = true;
   correctCount++;
   const bubble = document.getElementById('radio-bubble');
   bubble.classList.add('correct');
@@ -285,7 +286,7 @@ function showHint(level) {
   }
 
   // Dots hint for planes visual
-  const total = currentQ.a;
+  const total = currentQ.type === 'addition' ? currentQ.a + currentQ.b : currentQ.a;
   const crossed = currentQ.type === 'subtraction' ? currentQ.b : 0;
   for (let i = 0; i < total; i++) {
     const dot = document.createElement('div');
@@ -298,11 +299,13 @@ function showHint(level) {
     // Group dots visually — add separator after first group
     const separator = document.createElement('div');
     separator.style.width = '100%';
-    hintDots.insertBefore(separator, hintDots.children[currentQ.a] || null);
+    const separatorIndex = currentQ.type === 'subtraction' ? crossed : currentQ.a;
+    hintDots.insertBefore(separator, hintDots.children[separatorIndex] || null);
   }
 }
 
 function revealAnswer() {
+  document.getElementById('btn-submit').disabled = true;
   document.getElementById('radio-text').textContent =
     `התשובה היא ${currentQ.result}. המטוס נוחת בכל זאת — כל הכבוד שניסית!`;
 
