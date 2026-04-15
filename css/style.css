@@ -566,6 +566,16 @@ body {
   font-size: 1.1rem;
   padding: 10px 20px;
   text-align: center;
+  transition: box-shadow 0.3s;
+}
+
+.new-plane-badge.gold {
+  background: linear-gradient(135deg, #241200, #1a0c00);
+  border-color: #c8960c;
+  color: #ffd700;
+  box-shadow: 0 0 20px rgba(255,200,0,0.4);
+  animation: gold-pulse 2s ease-in-out infinite;
+  font-weight: 700;
 }
 
 .new-plane-badge.hidden { display: none; }
@@ -584,6 +594,13 @@ body {
 .rank-up.hidden { display: none; }
 
 /* ===== ALBUM SCREEN ===== */
+#screen-album .screen-content {
+  overflow-y: auto;
+  max-height: 100vh;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
 .album-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -595,14 +612,149 @@ body {
   aspect-ratio: 1;
   background: var(--color-panel);
   border: 2px solid var(--color-panel-border);
-  border-radius: 8px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.8rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  overflow: hidden;
 }
 
-.album-slot.empty { opacity: 0.2; }
+/* כרטיס שנאסף — אינטראקטיבי */
+.album-slot.collected {
+  cursor: pointer;
+  border-color: #2a6090;
+}
+.album-slot.collected:hover {
+  transform: scale(1.12) translateY(-3px);
+  box-shadow: 0 6px 20px rgba(0,180,255,0.35);
+  border-color: var(--color-radar-green);
+  z-index: 2;
+}
+.album-slot.collected:active { transform: scale(1.04); }
+
+/* כרטיס זהב */
+.album-slot.gold {
+  background: linear-gradient(135deg, #2a1800, #3d2400, #2a1800);
+  border: 2px solid #c8960c;
+  box-shadow: 0 0 14px rgba(255, 200, 0, 0.35);
+  animation: gold-pulse 2.5s ease-in-out infinite;
+}
+.album-slot.gold:hover {
+  box-shadow: 0 0 28px rgba(255, 200, 0, 0.7), 0 8px 24px rgba(255,150,0,0.4);
+  border-color: #ffd700;
+}
+
+/* ✨ ניצוץ קטן בפינה לזהב */
+.album-slot.gold::after {
+  content: '✨';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 0.65rem;
+  opacity: 0.9;
+}
+
+@keyframes gold-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(255,200,0,0.3); }
+  50%       { box-shadow: 0 0 22px rgba(255,200,0,0.65); }
+}
+
+/* כרטיס ריק */
+.album-slot.empty {
+  opacity: 0.18;
+  cursor: default;
+}
+
+/* ===== PLANE DETAIL MODAL ===== */
+.plane-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 8, 22, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.plane-modal.open    { opacity: 1; }
+.plane-modal.closing { opacity: 0; }
+
+.plane-modal-card {
+  background: linear-gradient(160deg, #0d2040, #0a1628);
+  border: 2px solid #2a5a90;
+  border-radius: 20px;
+  padding: 2rem 2rem 1.5rem;
+  text-align: center;
+  max-width: 300px;
+  width: 88%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  transform: translateY(30px) scale(0.92);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+}
+.plane-modal.open .plane-modal-card {
+  transform: translateY(0) scale(1);
+}
+
+/* כרטיס זהב במודל */
+.plane-modal.gold .plane-modal-card {
+  background: linear-gradient(160deg, #241200, #1a0c00);
+  border-color: #c8960c;
+  box-shadow: 0 0 40px rgba(255,190,0,0.25), 0 20px 60px rgba(0,0,0,0.6);
+}
+
+.plane-modal-emoji {
+  font-size: 4.5rem;
+  line-height: 1;
+  animation: plane-bounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
+}
+@keyframes plane-bounce {
+  from { transform: scale(0.3) rotate(-15deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg);    opacity: 1; }
+}
+
+.plane-modal-name {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--color-radar-green);
+  text-shadow: 0 0 10px rgba(0,255,65,0.4);
+}
+.plane-modal.gold .plane-modal-name {
+  color: #ffd700;
+  text-shadow: 0 0 12px rgba(255,200,0,0.5);
+}
+
+.plane-modal-gold-badge {
+  font-size: 0.85rem;
+  color: #ffd700;
+  background: rgba(255,200,0,0.1);
+  border: 1px solid #c8960c;
+  border-radius: 20px;
+  padding: 3px 12px;
+  letter-spacing: 0.5px;
+}
+
+.plane-modal-fact {
+  font-size: 1rem;
+  color: var(--color-text);
+  line-height: 1.6;
+  text-align: center;
+  max-width: 260px;
+}
+
+.plane-modal-close {
+  margin-top: 6px;
+  width: 100%;
+  font-size: 1rem;
+  padding: 10px;
+}
 
 /* ===== MAP SCREEN ===== */
 .map-stages {

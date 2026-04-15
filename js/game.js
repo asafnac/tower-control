@@ -461,7 +461,11 @@ function showReport(correct, newPlane, rankUp) {
   msgEl.textContent = msg;
 
   if (newPlane) {
-    planeEl.textContent = `מָטוֹס חָדָשׁ בָּאַלְבּוּם: ${newPlane.emoji} ${newPlane.name}`;
+    const isGold = newPlane.rarity === 'gold';
+    planeEl.textContent = isGold
+      ? `✨ כֶּרְטִיס זָהָב נָדִיר! ${newPlane.emoji} ${newPlane.name} ✨`
+      : `מָטוֹס חָדָשׁ בָּאַלְבּוּם: ${newPlane.emoji} ${newPlane.name}`;
+    planeEl.className = 'new-plane-badge' + (isGold ? ' gold' : '');
     planeEl.classList.remove('hidden');
   } else {
     planeEl.classList.add('hidden');
@@ -488,12 +492,21 @@ function showReport(correct, newPlane, rankUp) {
 function showAlbum() {
   const grid = document.getElementById('album-grid');
   grid.innerHTML = '';
+
   PLANE_TYPES.forEach(p => {
     const slot = document.createElement('div');
     const collected = saveData.planesCollected.includes(p.id);
-    slot.className = 'album-slot' + (collected ? '' : ' empty');
-    slot.textContent = collected ? p.emoji : '?';
+    const isGold = p.rarity === 'gold';
+
+    slot.className = 'album-slot'
+      + (collected ? ' collected' : ' empty')
+      + (collected && isGold ? ' gold' : '');
+    slot.textContent = collected ? p.emoji : '❓';
     slot.title = collected ? p.name : '???';
+
+    if (collected) {
+      slot.addEventListener('click', () => openPlaneDetail(p));
+    }
     grid.appendChild(slot);
   });
 
@@ -503,6 +516,40 @@ function showAlbum() {
   };
 
   showScreen('screen-album');
+}
+
+// ===== PLANE DETAIL POPUP =====
+function openPlaneDetail(plane) {
+  // Remove any existing modal
+  const existing = document.getElementById('plane-modal');
+  if (existing) existing.remove();
+
+  const isGold = plane.rarity === 'gold';
+  const modal = document.createElement('div');
+  modal.id = 'plane-modal';
+  modal.className = 'plane-modal' + (isGold ? ' gold' : '');
+
+  modal.innerHTML = `
+    <div class="plane-modal-card">
+      <span class="plane-modal-emoji">${plane.emoji}</span>
+      <h3 class="plane-modal-name">${plane.name}</h3>
+      ${isGold ? '<span class="plane-modal-gold-badge">✨ כֶּרְטִיס זָהָב נָדִיר!</span>' : ''}
+      <p class="plane-modal-fact">${plane.funFact}</p>
+      <button class="plane-modal-close btn-primary">סָגוּר ✕</button>
+    </div>
+  `;
+
+  // Close on backdrop click or close button
+  modal.addEventListener('click', e => {
+    if (e.target === modal || e.target.classList.contains('plane-modal-close')) {
+      modal.classList.add('closing');
+      setTimeout(() => modal.remove(), 250);
+    }
+  });
+
+  document.body.appendChild(modal);
+  // Trigger animation next frame
+  requestAnimationFrame(() => modal.classList.add('open'));
 }
 
 // ===== MAP SCREEN =====
