@@ -504,14 +504,35 @@ function showMap() {
 }
 
 // ===== TEXT-TO-SPEECH =====
+let _hebrewVoice = null; // cached after first load
+
+function _loadHebrewVoice() {
+  const voices = speechSynthesis.getVoices();
+  // Prefer exact he-IL, fall back to any Hebrew voice
+  _hebrewVoice =
+    voices.find(v => v.lang === 'he-IL') ||
+    voices.find(v => v.lang.startsWith('he')) ||
+    null;
+}
+
+if (window.speechSynthesis) {
+  _loadHebrewVoice();
+  // Voices are loaded asynchronously in Chrome — re-cache when ready
+  speechSynthesis.addEventListener('voiceschanged', _loadHebrewVoice);
+}
+
 function speakQuestion() {
   if (!window.speechSynthesis) return;
   speechSynthesis.cancel();
 
-  const text = formatRadioText(currentQ.radioText, currentQ);
+  // Strip nikud (U+05B0–U+05C7) — TTS engines handle plain Hebrew better
+  const raw = formatRadioText(currentQ.radioText, currentQ);
+  const text = raw.replace(/[\u05B0-\u05C7]/g, '');
+
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = 'he-IL';
-  utter.rate = 0.85; // slightly slower for a child
+  utter.rate = 0.85;
+  if (_hebrewVoice) utter.voice = _hebrewVoice;
 
   const btn = document.getElementById('btn-speak');
   btn.classList.add('speaking');
