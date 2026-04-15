@@ -83,9 +83,7 @@ function formatRadioText(template, q) {
 
 function loadQuestion(q) {
   // Stop any ongoing speech from the previous question
-  if (window.responsiveVoice) responsiveVoice.cancel();
-  if (window.speechSynthesis) speechSynthesis.cancel();
-  document.getElementById('btn-speak').classList.remove('speaking');
+  _stopSpeech();
 
   currentQ = q;
   attempts = 0;
@@ -503,25 +501,18 @@ function showMap() {
 }
 
 // ===== TEXT-TO-SPEECH =====
-let _hebrewVoice = null; // cached after first load
+let _ttsAudio = null; // current audio element (Google TTS)
 
-function _loadHebrewVoice() {
-  const voices = speechSynthesis.getVoices();
-  // Prefer exact he-IL, fall back to any Hebrew voice
-  _hebrewVoice =
-    voices.find(v => v.lang === 'he-IL') ||
-    voices.find(v => v.lang.startsWith('he')) ||
-    null;
-}
-
-if (window.speechSynthesis) {
-  _loadHebrewVoice();
-  // Voices are loaded asynchronously in Chrome — re-cache when ready
-  speechSynthesis.addEventListener('voiceschanged', _loadHebrewVoice);
+function _stopSpeech() {
+  if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio.src = ''; _ttsAudio = null; }
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  document.getElementById('btn-speak').classList.remove('speaking');
 }
 
 function speakQuestion() {
-  // Strip nikud (U+05B0–U+05C7) — TTS engines read plain Hebrew more reliably
+  _stopSpeech();
+
+  // Strip nikud (U+05B0–U+05C7) before sending to TTS
   const raw = formatRadioText(currentQ.radioText, currentQ);
   const text = raw.replace(/[\u05B0-\u05C7]/g, '');
 
@@ -529,22 +520,13 @@ function speakQuestion() {
   btn.classList.add('speaking');
   const done = () => btn.classList.remove('speaking');
 
-  // Primary: ResponsiveVoice — includes Hebrew, no OS voice needed
-  if (window.responsiveVoice) {
-    responsiveVoice.speak(text, 'Hebrew Female', { rate: 0.9, onend: done, onerror: done });
-    return;
-  }
-
-  // Fallback: Web Speech API (requires he-IL voice installed on OS)
-  if (!window.speechSynthesis) { done(); return; }
-  speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = 'he-IL';
-  utter.rate = 0.85;
-  if (_hebrewVoice) utter.voice = _hebrewVoice;
-  utter.onend  = done;
-  utter.onerror = done;
-  speechSynthesis.speak(utter);
+  // Google Translate TTS — Hebrew, no API key, works from local files
+  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=he&client=tw-ob&q='
+    + encodeURIComponent(text);
+  _ttsAudio = new Audio(url);
+  _ttsAudio.onended = done;
+  _ttsAudio.onerror = done;
+  _ttsAudio.play().catch(done);
 }
 
 // ===== INIT =====
