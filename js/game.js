@@ -464,7 +464,7 @@ function showMap() {
 
   CURRICULUM.stages.forEach(stage => {
     const completed = saveData.stagesCompleted.includes(stage.id);
-    const current   = stage.id === saveData.currentStage;
+    const current   = !completed && (stage.id === saveData.currentStage);
     const locked    = stage.id > saveData.currentStage;
 
     const row = document.createElement('div');
