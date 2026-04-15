@@ -29,29 +29,29 @@ function runTests() {
   assert(PROGRESS.getRankForStage(6).name === 'מפקח', 'Stage 6 = מפקח');
   assert(PROGRESS.getRankForStage(8).name === 'מפקח ראשי', 'Stage 8 = מפקח ראשי');
 
-  // addPlane deduplication
+  // addPlane deduplication (functions mutate in place)
   let data = PROGRESS._default();
-  data = PROGRESS.addPlane(data, 1);
-  data = PROGRESS.addPlane(data, 1); // duplicate
+  PROGRESS.addPlane(data, 1);
+  PROGRESS.addPlane(data, 1); // duplicate
   assert(data.planesCollected.length === 1, 'No duplicate planes');
-  data = PROGRESS.addPlane(data, 2);
+  PROGRESS.addPlane(data, 2);
   assert(data.planesCollected.length === 2, 'Second plane added');
 
-  // completeStage
+  // completeStage (mutates in place)
   data = PROGRESS._default();
-  data = PROGRESS.completeStage(data, 1);
+  PROGRESS.completeStage(data, 1);
   assert(data.currentStage === 2, 'After completing stage 1, currentStage = 2');
   assert(data.stagesCompleted.includes(1), 'Stage 1 in stagesCompleted');
   assert(data.rank === 'פקח', 'Rank updated to פקח after stage 1');
 
   // completeStage idempotent
-  data = PROGRESS.completeStage(data, 1); // complete again
+  PROGRESS.completeStage(data, 1); // complete again
   assert(data.stagesCompleted.filter(s => s === 1).length === 1, 'No duplicate in stagesCompleted');
 
   // Stage cap at 7
   data = PROGRESS._default();
   data.currentStage = 7;
-  data = PROGRESS.completeStage(data, 7);
+  PROGRESS.completeStage(data, 7);
   assert(data.currentStage === 7, 'Stage capped at 7');
 
   // ===== CURRICULUM integrity =====

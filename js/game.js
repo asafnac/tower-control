@@ -360,12 +360,14 @@ function endShift() {
   let rankUp = false;
   let newPlane = null;
 
-  if (shouldAdvance && saveData.currentStage < 7) {
-    const oldRank = PROGRESS.getRankForStage(saveData.currentStage).name;
-    PROGRESS.completeStage(saveData, saveData.currentStage);
-    saveData.currentStageShifts = 0;
-    const newRank = PROGRESS.getRankForStage(saveData.currentStage).name;
-    rankUp = (newRank !== oldRank);
+  if (shouldAdvance) {
+    saveData.currentStageShifts = 0; // reset for next stage (or stays at 7)
+    if (saveData.currentStage < 7) {
+      const oldRank = PROGRESS.getRankForStage(saveData.currentStage).name;
+      PROGRESS.completeStage(saveData, saveData.currentStage);
+      const newRank = PROGRESS.getRankForStage(saveData.currentStage).name;
+      rankUp = (newRank !== oldRank);
+    }
   }
 
   // Award a random plane not yet collected

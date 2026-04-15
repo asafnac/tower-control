@@ -7,6 +7,7 @@
 //   planesCollected: number[],    // PLANE_TYPES ids
 //   stagesCompleted: number[],    // stage ids
 //   shiftsCompleted: number,
+//   currentStageShifts: number,  // resets to 0 on stage advance
 //   rank: string
 // }
 
