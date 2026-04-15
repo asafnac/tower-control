@@ -82,6 +82,12 @@ function formatRadioText(template, q) {
 }
 
 function loadQuestion(q) {
+  // Stop any ongoing speech from the previous question
+  if (window.speechSynthesis) {
+    speechSynthesis.cancel();
+    document.getElementById('btn-speak').classList.remove('speaking');
+  }
+
   currentQ = q;
   attempts = 0;
   selectedAnswer = null;
@@ -497,6 +503,24 @@ function showMap() {
   showScreen('screen-map');
 }
 
+// ===== TEXT-TO-SPEECH =====
+function speakQuestion() {
+  if (!window.speechSynthesis) return;
+  speechSynthesis.cancel();
+
+  const text = formatRadioText(currentQ.radioText, currentQ);
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'he-IL';
+  utter.rate = 0.85; // slightly slower for a child
+
+  const btn = document.getElementById('btn-speak');
+  btn.classList.add('speaking');
+  utter.onend  = () => btn.classList.remove('speaking');
+  utter.onerror = () => btn.classList.remove('speaking');
+
+  speechSynthesis.speak(utter);
+}
+
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
   initEntry();
@@ -508,6 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('btn-submit').addEventListener('click', handleSubmit);
+  document.getElementById('btn-speak').addEventListener('click', speakQuestion);
 
   document.getElementById('btn-show-album').addEventListener('click', () => {
     saveData = PROGRESS.load();
