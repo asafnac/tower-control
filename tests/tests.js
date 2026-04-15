@@ -22,12 +22,12 @@ function runTests() {
   assert(d.shiftsCompleted === 0, 'Default shiftsCompleted should be 0');
 
   // getRankForStage
-  assert(PROGRESS.getRankForStage(1).name === 'מתלמד', 'Stage 1 = מתלמד');
-  assert(PROGRESS.getRankForStage(2).name === 'פקח', 'Stage 2 = פקח');
-  assert(PROGRESS.getRankForStage(3).name === 'פקח', 'Stage 3 = פקח (no change until 4)');
-  assert(PROGRESS.getRankForStage(4).name === 'פקח בכיר', 'Stage 4 = פקח בכיר');
-  assert(PROGRESS.getRankForStage(6).name === 'מפקח', 'Stage 6 = מפקח');
-  assert(PROGRESS.getRankForStage(8).name === 'מפקח ראשי', 'Stage 8 = מפקח ראשי');
+  assert(PROGRESS.getRankForStage(1).name === 'מִתְלַמֵּד', 'Stage 1 = מִתְלַמֵּד');
+  assert(PROGRESS.getRankForStage(2).name === 'פַּקָּח', 'Stage 2 = פַּקָּח');
+  assert(PROGRESS.getRankForStage(3).name === 'פַּקָּח', 'Stage 3 = פַּקָּח (no change until 4)');
+  assert(PROGRESS.getRankForStage(4).name === 'פַּקָּח בְּכִיר', 'Stage 4 = פַּקָּח בְּכִיר');
+  assert(PROGRESS.getRankForStage(6).name === 'מְפַקֵּחַ', 'Stage 6 = מְפַקֵּחַ');
+  assert(PROGRESS.getRankForStage(8).name === 'מְפַקֵּחַ רָאשִׁי', 'Stage 8 = מְפַקֵּחַ רָאשִׁי');
 
   // addPlane deduplication (functions mutate in place)
   let data = PROGRESS._default();
@@ -42,7 +42,7 @@ function runTests() {
   PROGRESS.completeStage(data, 1);
   assert(data.currentStage === 2, 'After completing stage 1, currentStage = 2');
   assert(data.stagesCompleted.includes(1), 'Stage 1 in stagesCompleted');
-  assert(data.rank === 'פקח', 'Rank updated to פקח after stage 1');
+  assert(data.rank === 'פַּקָּח', 'Rank updated to פַּקָּח after stage 1');
 
   // completeStage idempotent
   PROGRESS.completeStage(data, 1); // complete again

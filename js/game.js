@@ -10,7 +10,7 @@ let shiftIndex = 0;        // which question in the shift we're on
 let correctCount = 0;      // how many correct this shift
 
 const QUESTIONS_PER_SHIFT = 8;
-const SHIFT_NAMES = ['משמרת בוקר 🌅', 'משמרת צהריים ☀️', 'משמרת ערב 🌙'];
+const SHIFT_NAMES = ['מִשְׁמֶרֶת בֹּקֶר 🌅', 'מִשְׁמֶרֶת צׇהֳרַיִם ☀️', 'מִשְׁמֶרֶת עֶרֶב 🌙'];
 
 // ===== SCREEN MANAGEMENT =====
 function showScreen(id) {
@@ -28,7 +28,7 @@ function initEntry() {
   if (saveData.playerName) {
     nameInput.value = saveData.playerName;
     const rank = PROGRESS.getRankForStage(saveData.currentStage);
-    rankEl.textContent = `${rank.emoji} דרגה: ${rank.name}`;
+    rankEl.textContent = `${rank.emoji} דַּרְגָּה: ${rank.name}`;
     rankEl.classList.remove('hidden');
   }
 
@@ -219,11 +219,11 @@ function showCorrect() {
   bubble.classList.add('correct');
 
   const responses = [
-    'מצוין מגדל הפיקוח! יורדים לנחיתה!',
-    'כל הכבוד! המטוס נוחת בבטחה!',
-    'עבודה מצוינת פקח! אישור נחיתה!',
-    'מעולה! המטוס מקבל אישור!',
-    'פנטסטי! נחיתה חלקה!'
+    'מְצֻיָּן מִגְדַּל הַפִּיקּוּחַ! יוֹרְדִים לִנְחִיתָה!',
+    'כׇּל הַכָּבוֹד! הַמָּטוֹס נוֹחֵת בְּבִטָּחָה!',
+    'עֲבוֹדָה מְצֻיֶּנֶת פַּקָּח! אִישּׁוּר נְחִיתָה!',
+    'מְעֻלֶּה! הַמָּטוֹס מְקַבֵּל אִישּׁוּר!',
+    'פַנְטַסְטִי! נְחִיתָה חֲלָקָה!'
   ];
   document.getElementById('radio-text').textContent =
     responses[Math.floor(Math.random() * responses.length)];
@@ -248,9 +248,9 @@ function showWrong() {
   setTimeout(() => bubble.classList.remove('retry'), 500);
 
   const retryMessages = [
-    'מגדל הפיקוח, חזור — לא קלטנו היטב.',
-    'מגדל הפיקוח, אמור שנית?',
-    'מגדל הפיקוח, יש הפרעות בקשר — חזור בבקשה.',
+    'מִגְדַּל הַפִּיקּוּחַ, חֲזוֹר — לֹא קָלַטְנוּ הֵיטֵב.',
+    'מִגְדַּל הַפִּיקּוּחַ, אֱמוֹר שָׁנִית?',
+    'מִגְדַּל הַפִּיקּוּחַ, יֵשׁ הַפְרָעוֹת בַּקֶּשֶׁר — חֲזוֹר בְּבַקָּשָׁה.',
   ];
   document.getElementById('radio-text').textContent =
     retryMessages[attempts - 1] || retryMessages[0];
@@ -307,7 +307,7 @@ function showHint(level) {
 function revealAnswer() {
   document.getElementById('btn-submit').disabled = true;
   document.getElementById('radio-text').textContent =
-    `התשובה היא ${currentQ.result}. המטוס נוחת בכל זאת — כל הכבוד שניסית!`;
+    `הַתְּשׁוּבָה הִיא ${currentQ.result}. הַמָּטוֹס נוֹחֵת בְּכׇל זֹאת — כׇּל הַכָּבוֹד שֶׁנִּיסִּיתָ!`;
 
   if (currentQ.visual === 'altitude') {
     animateAltitudeChange(currentQ.result);
@@ -401,19 +401,19 @@ function showReport(correct, newPlane, rankUp) {
 
   let msg;
   if (correct === 0) {
-    msg = `משמרת טובה, ${saveData.playerName}! המשך להתאמן — אתה הולך להצליח!`;
+    msg = `מִשְׁמֶרֶת טוֹבָה, ${saveData.playerName}! הַמְשֵׁךְ לְהִתְאַמֵּן — אַתָּה הוֹלֵךְ לְהַצְלִיחַ!`;
   } else {
     const msgs = [
-      `היום נחתו בבטחה ${correct} מטוסים. כל הכבוד, ${saveData.playerName}!`,
-      `משמרת מצוינת! ${correct} מטוסים נחתו בשלום תודה לך!`,
-      `עבודה טובה, פקח! ${correct} נחיתות בטוחות היום.`,
+      `הַיּוֹם נָחֲתוּ בְּבִטָּחָה ${correct} מְטוֹסִים. כׇּל הַכָּבוֹד, ${saveData.playerName}!`,
+      `מִשְׁמֶרֶת מְצֻיֶּנֶת! ${correct} מְטוֹסִים נָחֲתוּ בְּשָׁלוֹם תּוֹדָה לְךָ!`,
+      `עֲבוֹדָה טוֹבָה, פַּקָּח! ${correct} נְחִיתוֹת בְּטוּחוֹת הַיּוֹם.`,
     ];
     msg = msgs[Math.floor(Math.random() * msgs.length)];
   }
   msgEl.textContent = msg;
 
   if (newPlane) {
-    planeEl.textContent = `מטוס חדש באלבום: ${newPlane.emoji} ${newPlane.name}`;
+    planeEl.textContent = `מָטוֹס חָדָשׁ בָּאַלְבּוּם: ${newPlane.emoji} ${newPlane.name}`;
     planeEl.classList.remove('hidden');
   } else {
     planeEl.classList.add('hidden');
@@ -421,7 +421,7 @@ function showReport(correct, newPlane, rankUp) {
 
   if (rankUp) {
     const rank = PROGRESS.getRankForStage(saveData.currentStage);
-    rankEl.textContent = `קידום! דרגה חדשה: ${rank.emoji} ${rank.name}`;
+    rankEl.textContent = `קִידּוּם! דַּרְגָּה חֲדָשָׁה: ${rank.emoji} ${rank.name}`;
     rankEl.classList.remove('hidden');
   } else {
     rankEl.classList.add('hidden');
@@ -479,11 +479,11 @@ function showMap() {
 
     const name   = document.createElement('span');
     name.className = 'map-stage-name';
-    name.textContent = `נמל ${stage.id}: ${stage.title}`;
+    name.textContent = `נָמֵל ${stage.id}: ${stage.title}`;
 
     const status = document.createElement('span');
     status.className = 'map-stage-status';
-    status.textContent = completed ? 'הושלם' : (current ? 'פעיל' : 'נעול');
+    status.textContent = completed ? 'הוּשְׁלַם' : (current ? 'פָּעִיל' : 'נָעוּל');
 
     row.append(icon, name, status);
     container.appendChild(row);
