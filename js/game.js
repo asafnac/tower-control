@@ -427,7 +427,13 @@ function endShift() {
   }
 
   PROGRESS.save(saveData);
-  showReport(correctCount, newPlane, rankUp);
+
+  // Landing mini-game as reward if a new plane was collected
+  if (newPlane) {
+    startLandingGame(newPlane, () => showReport(correctCount, newPlane, rankUp));
+  } else {
+    showReport(correctCount, null, rankUp);
+  }
 }
 
 // ===== SHIFT REPORT =====
@@ -550,6 +556,169 @@ function openPlaneDetail(plane) {
   document.body.appendChild(modal);
   // Trigger animation next frame
   requestAnimationFrame(() => modal.classList.add('open'));
+}
+
+// ===== LANDING MINI-GAME =====
+let _lg = null; // landing game state
+
+function startLandingGame(plane, onComplete) {
+  const isGold = plane.rarity === 'gold';
+
+  _lg = {
+    plane, onComplete,
+    x:        -15,      // plane left position, % of sky width. starts off-screen
+    vx:       0.42,     // % per frame (≈0.42 * 60fps = 25% per second → 5s loop)
+    y:        20,       // plane top position, % of sky height
+    phase:    'flying', // 'flying' | 'descending' | 'landed'
+    attempts: 0,
+    raf:      null,
+    ZONE_START: 22,     // landing zone left edge, % of sky width
+    ZONE_END:   72,     // landing zone right edge — generous 50% window
+    RUNWAY_Y:   80,     // filled in after screen shows (% of sky height)
+  };
+
+  // Set up UI
+  document.getElementById('landing-title').textContent =
+    (isGold ? '✨ ' : '✈ ') + `נְחִית אֶת ${plane.name}!`;
+  document.getElementById('landing-plane').textContent = plane.emoji;
+  document.getElementById('landing-msg').textContent =
+    'לְחַץ עַל הַכַּפְתּוֹר כַּאֲשֶׁר הַמָּטוֹס מֵעַל הַמַּסְלוּל הַמֶּאִיר!';
+  const btn = document.getElementById('btn-land');
+  btn.textContent = '✈ לְחַץ לִנְחִיתָה!';
+  btn.disabled = false;
+  btn.className = 'btn-land' + (isGold ? ' gold' : '');
+  btn.onclick = _attemptLanding;
+
+  // Style landing zone for gold planes
+  document.getElementById('landing-zone').className =
+    'landing-zone' + (isGold ? ' gold' : '');
+
+  showScreen('screen-landing');
+
+  // Compute RUNWAY_Y after screen is visible
+  requestAnimationFrame(() => {
+    const skyEl   = document.getElementById('landing-sky');
+    const planeEl = document.getElementById('landing-plane');
+    const skyH    = skyEl.offsetHeight || 300;
+    const groundH = 65;
+    const planeH  = planeEl.offsetHeight || 50;
+    _lg.RUNWAY_Y  = ((skyH - groundH - planeH + 4) / skyH) * 100;
+
+    // Reset plane position
+    planeEl.style.cssText = `left:${_lg.x}%;top:${_lg.y}%`;
+    _lg.raf = requestAnimationFrame(_landingLoop);
+  });
+}
+
+function _landingLoop() {
+  if (!_lg) return;
+  const planeEl = document.getElementById('landing-plane');
+
+  if (_lg.phase === 'flying') {
+    _lg.x += _lg.vx;
+    if (_lg.x > 112) _lg.x = -15;        // loop back
+    planeEl.style.left = _lg.x + '%';
+
+  } else if (_lg.phase === 'descending') {
+    _lg.y += 1.6;                          // descend ~1.6% of sky per frame
+    planeEl.style.top = _lg.y + '%';
+    if (_lg.y >= _lg.RUNWAY_Y) {
+      planeEl.style.top = _lg.RUNWAY_Y + '%';
+      _lg.phase = 'landed';
+      _onLandingSuccess();
+      return;
+    }
+  }
+
+  _lg.raf = requestAnimationFrame(_landingLoop);
+}
+
+function _attemptLanding() {
+  if (!_lg || _lg.phase !== 'flying') return;
+
+  const inZone = _lg.x >= _lg.ZONE_START && _lg.x <= _lg.ZONE_END;
+
+  if (inZone || _lg.attempts >= 2) {
+    // Snap to center of zone on auto-assist
+    if (!inZone) {
+      _lg.x = (_lg.ZONE_START + _lg.ZONE_END) / 2;
+      document.getElementById('landing-plane').style.left = _lg.x + '%';
+    }
+    _lg.phase = 'descending';
+    document.getElementById('btn-land').disabled = true;
+    document.getElementById('landing-msg').textContent = '...יוֹרְדִים לִנְחִיתָה 🛬';
+
+  } else {
+    _lg.attempts++;
+    const msgs = [
+      'כִּמְעַט! לְחַץ כַּאֲשֶׁר הַמָּטוֹס מֵעַל הַמַּסְלוּל הַיָּרֹק!',
+      'עוֹד פַּעַם — הַפַּעַם תַּצְלִיחַ!',
+    ];
+    document.getElementById('landing-msg').textContent = msgs[_lg.attempts - 1];
+
+    // Wobble the plane
+    const p = document.getElementById('landing-plane');
+    p.classList.remove('lg-wobble');
+    void p.offsetWidth; // reflow
+    p.classList.add('lg-wobble');
+    setTimeout(() => p && p.classList.remove('lg-wobble'), 500);
+  }
+}
+
+function _onLandingSuccess() {
+  cancelAnimationFrame(_lg.raf);
+  _lg.raf = null;
+
+  const planeEl = document.getElementById('landing-plane');
+  const isGold  = _lg.plane.rarity === 'gold';
+
+  // Landing dust / bounce
+  planeEl.classList.add('lg-landed');
+
+  // Show success message
+  document.getElementById('landing-msg').textContent =
+    isGold
+      ? '✨ נְחִיתַת זָהָב מוּשְׁלֶמֶת! אַתָּה מַדְהִים! ✨'
+      : '🎉 נְחִיתָה מוּשְׁלֶמֶת! כׇּל הַכָּבוֹד!';
+
+  // TTS celebration
+  const txt = isGold ? 'נחיתת זהב! אתה מדהים!' : 'נחיתה מושלמת! כל הכבוד!';
+  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=he&client=tw-ob&q='
+    + encodeURIComponent(txt);
+  new Audio(url).play().catch(() => {});
+
+  // Celebration confetti (reuse existing celebrate overlay briefly)
+  const overlay = document.getElementById('celebrate-overlay');
+  const confettiEl = document.getElementById('celebrate-confetti');
+  document.getElementById('celebrate-name').textContent = _lg.plane.name;
+  document.querySelector('.celebrate-sub').textContent = isGold ? '✨ מָטוֹס זָהָב!' : 'מָטוֹס חָדָשׁ!';
+  confettiEl.innerHTML = '';
+  const colors = ['#00ff41','#ffd700','#00bfff','#ff6b9d','#fff700','#cc44ff'];
+  for (let i = 0; i < 28; i++) {
+    const p = document.createElement('div');
+    p.className = 'cel-cp';
+    p.style.cssText = `left:${Math.random()*100}%;width:${7+Math.random()*6}px;height:${7+Math.random()*6}px;background:${colors[i%colors.length]};border-radius:${Math.random()>.45?'50%':'3px'};animation-delay:${Math.random()*.3}s;animation-duration:${.9+Math.random()*.8}s`;
+    confettiEl.appendChild(p);
+  }
+  overlay.classList.add('active');
+  setTimeout(() => {
+    overlay.classList.remove('active');
+    confettiEl.innerHTML = '';
+  }, 1800);
+
+  // Show "continue" button after short pause
+  setTimeout(() => {
+    const btn = document.getElementById('btn-land');
+    btn.disabled = false;
+    btn.textContent = '✅ לְדוּחַ הַמִּשְׁמֶרֶת';
+    btn.onclick = () => {
+      planeEl.className = 'landing-plane-el';
+      planeEl.style.cssText = '';
+      const { onComplete } = _lg;
+      _lg = null;
+      onComplete();
+    };
+  }, 2000);
 }
 
 // ===== MAP SCREEN =====

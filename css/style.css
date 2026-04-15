@@ -593,6 +593,226 @@ body {
 
 .rank-up.hidden { display: none; }
 
+/* ===== LANDING MINI-GAME ===== */
+#screen-landing {
+  background: linear-gradient(180deg, #03080f 0%, #070e1c 40%, #0a1810 80%, #06120a 100%);
+  justify-content: flex-start;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* sky fills available space between title and controls */
+#screen-landing .landing-sky { flex: 1; }
+
+.landing-title {
+  width: 100%;
+  padding: 18px 20px 8px;
+  text-align: center;
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--color-radar-green);
+  text-shadow: 0 0 12px rgba(0,255,65,0.45);
+  z-index: 2;
+  position: relative;
+}
+
+/* sky play area */
+.landing-sky {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  overflow: hidden;
+}
+
+/* distant stars */
+.landing-sky::before {
+  content: '·  ✦  ·  ·  ✦  ·  ·  ✦  ·  ✦  ·  ·';
+  position: absolute;
+  top: 8%;
+  left: 0; right: 0;
+  text-align: center;
+  color: rgba(255,255,255,0.25);
+  font-size: 0.75rem;
+  letter-spacing: 6px;
+  pointer-events: none;
+}
+
+/* plane emoji */
+.landing-plane-el {
+  position: absolute;
+  font-size: 3rem;
+  top: 20%;
+  left: -15%;
+  z-index: 10;
+  line-height: 1;
+  filter: drop-shadow(0 0 10px rgba(80,200,255,0.6));
+  will-change: left, top;
+}
+
+/* ground strip */
+.landing-ground {
+  position: absolute;
+  bottom: 0;
+  left: 0; right: 0;
+  height: 65px;
+  background: linear-gradient(180deg, #0b1e0b, #07120a);
+  border-top: 2px solid #183518;
+}
+
+/* runway strip */
+.landing-runway {
+  position: absolute;
+  top: 44%;
+  left: 10%;
+  right: 10%;
+  height: 15px;
+  background: #262626;
+  transform: translateY(-50%);
+  border-radius: 3px;
+  border: 1px solid #3a3a3a;
+  overflow: hidden;
+}
+
+/* runway center dashes */
+.landing-runway::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0, transparent 18px,
+    rgba(255,255,255,0.12) 18px, rgba(255,255,255,0.12) 36px
+  );
+}
+
+/* landing zone — blinks green */
+.landing-zone {
+  position: absolute;
+  left: 25%;
+  width: 50%;
+  height: 100%;
+  background: rgba(0,255,65,0.2);
+  border-inline: 3px solid var(--color-radar-green);
+  animation: lz-blink 0.75s ease-in-out infinite;
+}
+.landing-zone.gold {
+  background: rgba(255,200,0,0.2);
+  border-inline-color: #ffd700;
+  animation: lz-blink-gold 0.75s ease-in-out infinite;
+}
+
+@keyframes lz-blink {
+  0%, 100% { background: rgba(0,255,65,0.12); box-shadow: none; }
+  50%       { background: rgba(0,255,65,0.42); box-shadow: 0 0 14px rgba(0,255,65,0.55); }
+}
+@keyframes lz-blink-gold {
+  0%, 100% { background: rgba(255,200,0,0.1); box-shadow: none; }
+  50%       { background: rgba(255,200,0,0.38); box-shadow: 0 0 16px rgba(255,200,0,0.6); }
+}
+
+/* runway edge lights */
+.runway-lights {
+  position: absolute;
+  top: 14%;
+  left: 6%;
+  right: 6%;
+  display: flex;
+  justify-content: space-between;
+}
+.runway-lights span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff9500;
+  box-shadow: 0 0 6px #ff9500;
+  animation: light-blink 1.2s ease-in-out infinite;
+}
+.runway-lights span:nth-child(2n) { animation-delay: 0.3s; }
+.runway-lights span:nth-child(3n) { animation-delay: 0.6s; }
+.runway-lights span:nth-child(4n) { animation-delay: 0.9s; }
+
+@keyframes light-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+/* controls area */
+.landing-controls {
+  padding: 14px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+/* the big land button */
+.btn-land {
+  width: 100%;
+  max-width: 340px;
+  padding: 18px 24px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  font-family: var(--font-main);
+  color: var(--color-text);
+  background: var(--color-btn);
+  border: 3px solid var(--color-radar-green);
+  border-radius: 18px;
+  cursor: pointer;
+  animation: land-btn-glow 0.85s ease-in-out infinite;
+  transition: transform 0.1s, background 0.1s;
+}
+.btn-land.gold {
+  border-color: #ffd700;
+  animation: land-btn-glow-gold 0.85s ease-in-out infinite;
+}
+.btn-land:hover  { background: var(--color-btn-hover); }
+.btn-land:active { transform: scale(0.95); }
+.btn-land:disabled {
+  animation: none;
+  opacity: 0.38;
+  cursor: not-allowed;
+  border-color: var(--color-panel-border);
+}
+
+@keyframes land-btn-glow {
+  0%, 100% { box-shadow: 0 0 12px rgba(0,255,65,0.3), 0 4px 16px rgba(0,0,0,0.4); }
+  50%       { box-shadow: 0 0 28px rgba(0,255,65,0.7), 0 6px 22px rgba(0,0,0,0.4); }
+}
+@keyframes land-btn-glow-gold {
+  0%, 100% { box-shadow: 0 0 12px rgba(255,200,0,0.3), 0 4px 16px rgba(0,0,0,0.4); }
+  50%       { box-shadow: 0 0 28px rgba(255,200,0,0.7), 0 6px 22px rgba(0,0,0,0.4); }
+}
+
+.landing-msg {
+  font-size: 1.05rem;
+  color: var(--color-text);
+  text-align: center;
+  min-height: 1.6em;
+  font-weight: 500;
+}
+
+/* ---- plane animations ---- */
+@keyframes lg-wobble {
+  0%, 100% { transform: translateY(0)   rotate(0deg);  }
+  25%       { transform: translateY(-10px) rotate(8deg);  }
+  60%       { transform: translateY(5px)  rotate(-5deg); }
+}
+.lg-wobble { animation: lg-wobble 0.5s ease-in-out; }
+
+@keyframes lg-land-bounce {
+  0%   { transform: translateY(0)    scaleX(1);    }
+  30%  { transform: translateY(-12px) scaleX(1.05); }
+  55%  { transform: translateY(3px)  scaleX(0.96); }
+  75%  { transform: translateY(-5px) scaleX(1.02); }
+  100% { transform: translateY(0)    scaleX(1);    }
+}
+.lg-landed {
+  animation: lg-land-bounce 0.7s cubic-bezier(0.36,0.07,0.19,0.97);
+  filter: drop-shadow(0 0 20px rgba(0,255,150,0.9));
+}
+
 /* ===== ALBUM SCREEN ===== */
 #screen-album .screen-content {
   overflow-y: auto;
