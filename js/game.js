@@ -240,11 +240,6 @@ function showCelebration() {
 
   overlay.classList.add('active');
 
-  // Auto-speak the congratulation
-  const celebText = 'כל הכבוד ' + saveData.playerName + '! אתה פקח מצויין!';
-  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=he&client=tw-ob&q='
-    + encodeURIComponent(celebText);
-  new Audio(url).play().catch(() => {});
 
   setTimeout(() => {
     overlay.classList.remove('active');
@@ -266,8 +261,14 @@ function showCorrect() {
     'מְעֻלֶּה! הַמָּטוֹס מְקַבֵּל אִישּׁוּר!',
     'פַנְטַסְטִי! נְחִיתָה חֲלָקָה!'
   ];
-  document.getElementById('radio-text').textContent =
-    responses[Math.floor(Math.random() * responses.length)];
+  const chosenResponse = responses[Math.floor(Math.random() * responses.length)];
+  document.getElementById('radio-text').textContent = chosenResponse;
+
+  // Auto-read the positive feedback aloud
+  const clean = chosenResponse.replace(/[\u05B0-\u05C7]/g, '');
+  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=he&client=tw-ob&q='
+    + encodeURIComponent(clean);
+  new Audio(url).play().catch(() => {});
 
   // Animate landing on radar (if planes visual)
   if (currentQ.visual === 'planes' && currentQ.type === 'subtraction') {
