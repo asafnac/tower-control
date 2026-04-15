@@ -340,6 +340,94 @@ function animateAltitudeChange(targetAlt) {
   }
 }
 
+// ===== SHIFT FLOW =====
+function nextQuestion() {
+  shiftIndex++;
+  if (shiftIndex >= QUESTIONS_PER_SHIFT) {
+    endShift();
+    return;
+  }
+  loadQuestion(shiftQuestions[shiftIndex]);
+}
+
+function endShift() {
+  saveData.shiftsCompleted = (saveData.shiftsCompleted || 0) + 1;
+  const oldStage = saveData.currentStage;
+
+  // Advance stage when 3 consecutive shifts have high accuracy (≥6/8 correct)
+  // For simplicity in this version: advance after every 2 shifts on same stage
+  const stageShifts = saveData.shiftsCompleted;
+  const shouldAdvance = correctCount >= 6 && (stageShifts % 2 === 0);
+
+  let rankUp = false;
+  let newPlane = null;
+
+  if (shouldAdvance && saveData.currentStage < 7) {
+    const oldRank = PROGRESS.getRankForStage(saveData.currentStage).name;
+    saveData = PROGRESS.completeStage(saveData, saveData.currentStage);
+    const newRank = PROGRESS.getRankForStage(saveData.currentStage).name;
+    rankUp = (newRank !== oldRank);
+  }
+
+  // Award a random plane not yet collected
+  const uncollected = PLANE_TYPES.filter(p => !saveData.planesCollected.includes(p.id));
+  if (uncollected.length > 0) {
+    const awarded = uncollected[Math.floor(Math.random() * uncollected.length)];
+    saveData = PROGRESS.addPlane(saveData, awarded.id);
+    newPlane = awarded;
+  }
+
+  PROGRESS.save(saveData);
+  showReport(correctCount, newPlane, rankUp);
+}
+
+// ===== SHIFT REPORT =====
+function showReport(correct, newPlane, rankUp) {
+  const planesEl  = document.getElementById('report-planes');
+  const msgEl     = document.getElementById('report-msg');
+  const planeEl   = document.getElementById('report-new-plane');
+  const rankEl    = document.getElementById('report-rank-up');
+  const btnCont   = document.getElementById('btn-continue');
+
+  // Show plane emojis for each correct answer
+  planesEl.innerHTML = '';
+  for (let i = 0; i < correct; i++) {
+    const span = document.createElement('span');
+    span.textContent = '✈️';
+    planesEl.appendChild(span);
+  }
+
+  const msgs = [
+    `היום נחתו בבטחה ${correct} מטוסים. כל הכבוד, ${saveData.playerName}!`,
+    `משמרת מצוינת! ${correct} מטוסים נחתו בשלום תודה לך!`,
+    `עבודה טובה, פקח! ${correct} נחיתות בטוחות היום.`,
+  ];
+  msgEl.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+
+  if (newPlane) {
+    planeEl.textContent = `מטוס חדש באלבום: ${newPlane.emoji} ${newPlane.name}`;
+    planeEl.classList.remove('hidden');
+  } else {
+    planeEl.classList.add('hidden');
+  }
+
+  if (rankUp) {
+    const rank = PROGRESS.getRankForStage(saveData.currentStage);
+    rankEl.textContent = `קידום! דרגה חדשה: ${rank.emoji} ${rank.name}`;
+    rankEl.classList.remove('hidden');
+  } else {
+    rankEl.classList.add('hidden');
+  }
+
+  // Continue button goes back to entry screen
+  btnCont.onclick = () => {
+    showScreen('screen-entry');
+    initEntry();
+  };
+
+  showScreen('screen-report');
+}
+
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
   initEntry();
