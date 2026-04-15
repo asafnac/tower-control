@@ -16,7 +16,7 @@ const RANKS = [
   { name: 'פקח',         emoji: '✈️', minStage: 2 },
   { name: 'פקח בכיר',   emoji: '🛫', minStage: 4 },
   { name: 'מפקח',        emoji: '🏆', minStage: 6 },
-  { name: 'מפקח ראשי',  emoji: '👑', minStage: 8 }, // achieved after stage 7 done
+  { name: 'מפקח ראשי',  emoji: '👑', minStage: 7 }, // achieved after stage 7 done
 ];
 
 const PROGRESS = {
