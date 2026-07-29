@@ -56,6 +56,33 @@ const PLANE_TYPES = [
     funFact: 'הַנָּדִיר בְּיוֹתֵר בָּאַלְבּוּם — רַק מְפַקֵּחַ רָאשִׁי אֲמִתִּי יָכוֹל לִמְצוֹא אוֹתוֹ! 👑' },
 ];
 
+// Every line the game ever says out loud lives here, not in game.js, so that
+// tools/generate-audio.js has one place to enumerate. Adding a line here and
+// re-running the generator is all it takes to give it a voice.
+// {result} is expanded over every result that appears in the curriculum.
+const MESSAGES = {
+  correct: [
+    'מְצֻיָּן מִגְדַּל הַפִּיקּוּחַ! יוֹרְדִים לִנְחִיתָה!',
+    'כׇּל הַכָּבוֹד! הַמָּטוֹס נוֹחֵת בְּבִטָּחָה!',
+    'עֲבוֹדָה מְצֻיֶּנֶת פַּקָּח! אִישּׁוּר נְחִיתָה!',
+    'מְעֻלֶּה! הַמָּטוֹס מְקַבֵּל אִישּׁוּר!',
+    'פַנְטַסְטִי! נְחִיתָה חֲלָקָה!'
+  ],
+
+  retry: [
+    'מִגְדַּל הַפִּיקּוּחַ, חֲזוֹר — לֹא קָלַטְנוּ הֵיטֵב.',
+    'מִגְדַּל הַפִּיקּוּחַ, אֱמוֹר שָׁנִית?',
+    'מִגְדַּל הַפִּיקּוּחַ, יֵשׁ הַפְרָעוֹת בַּקֶּשֶׁר — חֲזוֹר בְּבַקָּשָׁה.',
+  ],
+
+  reveal: 'הַתְּשׁוּבָה הִיא {result}. הַמָּטוֹס נוֹחֵת בְּכׇל זֹאת — כׇּל הַכָּבוֹד שֶׁנִּיסִּיתָ!',
+
+  landing: {
+    normal: '🎉 נְחִיתָה מוּשְׁלֶמֶת! כׇּל הַכָּבוֹד!',
+    gold:   '✨ נְחִיתַת זָהָב מוּשְׁלֶמֶת! אַתָּה מַדְהִים! ✨',
+  },
+};
+
 // Radio text uses {a}, {b}, {result} as placeholders — replaced at runtime.
 // visual: 'planes' shows plane dots on radar.
 // visual: 'altitude' shows altitude meter.

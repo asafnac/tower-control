@@ -254,21 +254,9 @@ function showCorrect() {
   bubble.classList.add('correct');
   showCelebration();
 
-  const responses = [
-    'מְצֻיָּן מִגְדַּל הַפִּיקּוּחַ! יוֹרְדִים לִנְחִיתָה!',
-    'כׇּל הַכָּבוֹד! הַמָּטוֹס נוֹחֵת בְּבִטָּחָה!',
-    'עֲבוֹדָה מְצֻיֶּנֶת פַּקָּח! אִישּׁוּר נְחִיתָה!',
-    'מְעֻלֶּה! הַמָּטוֹס מְקַבֵּל אִישּׁוּר!',
-    'פַנְטַסְטִי! נְחִיתָה חֲלָקָה!'
-  ];
-  const chosenResponse = responses[Math.floor(Math.random() * responses.length)];
+  const chosenResponse = MESSAGES.correct[Math.floor(Math.random() * MESSAGES.correct.length)];
   document.getElementById('radio-text').textContent = chosenResponse;
-
-  // Auto-read the positive feedback aloud
-  const clean = chosenResponse.replace(/[\u05B0-\u05C7]/g, '');
-  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=he&client=tw-ob&q='
-    + encodeURIComponent(clean);
-  new Audio(url).play().catch(() => {});
+  SPEECH.speak(chosenResponse);
 
   // Animate landing on radar (if planes visual)
   if (currentQ.visual === 'planes' && currentQ.type === 'subtraction') {
@@ -289,13 +277,9 @@ function showWrong() {
   bubble.classList.add('retry');
   setTimeout(() => bubble.classList.remove('retry'), 500);
 
-  const retryMessages = [
-    'מִגְדַּל הַפִּיקּוּחַ, חֲזוֹר — לֹא קָלַטְנוּ הֵיטֵב.',
-    'מִגְדַּל הַפִּיקּוּחַ, אֱמוֹר שָׁנִית?',
-    'מִגְדַּל הַפִּיקּוּחַ, יֵשׁ הַפְרָעוֹת בַּקֶּשֶׁר — חֲזוֹר בְּבַקָּשָׁה.',
-  ];
-  document.getElementById('radio-text').textContent =
-    retryMessages[attempts - 1] || retryMessages[0];
+  const retryText = MESSAGES.retry[attempts - 1] || MESSAGES.retry[0];
+  document.getElementById('radio-text').textContent = retryText;
+  SPEECH.speak(retryText);
 
   // Restore the original question after a short pause
   const originalText = formatRadioText(currentQ.radioText, currentQ);
@@ -354,8 +338,10 @@ function showHint(level) {
 
 function revealAnswer() {
   document.getElementById('btn-submit').disabled = true;
-  document.getElementById('radio-text').textContent =
-    `הַתְּשׁוּבָה הִיא ${currentQ.result}. הַמָּטוֹס נוֹחֵת בְּכׇל זֹאת — כׇּל הַכָּבוֹד שֶׁנִּיסִּיתָ!`;
+  const revealText = MESSAGES.reveal.replace(/{result}/g, currentQ.result);
+  document.getElementById('radio-text').textContent = revealText;
+  // The child who missed three times is exactly the one who needs to hear it.
+  SPEECH.speak(revealText);
 
   if (currentQ.visual === 'altitude') {
     animateAltitudeChange(currentQ.result);
@@ -682,10 +668,7 @@ function _onLandingSuccess() {
       : '🎉 נְחִיתָה מוּשְׁלֶמֶת! כׇּל הַכָּבוֹד!';
 
   // TTS celebration
-  const txt = isGold ? 'נחיתת זהב! אתה מדהים!' : 'נחיתה מושלמת! כל הכבוד!';
-  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=he&client=tw-ob&q='
-    + encodeURIComponent(txt);
-  new Audio(url).play().catch(() => {});
+  SPEECH.speak(isGold ? MESSAGES.landing.gold : MESSAGES.landing.normal);
 
   // Celebration confetti (reuse existing celebrate overlay briefly)
   const overlay = document.getElementById('celebrate-overlay');
@@ -762,32 +745,23 @@ function showMap() {
 }
 
 // ===== TEXT-TO-SPEECH =====
-let _ttsAudio = null; // current audio element (Google TTS)
+// Backed by pre-generated clips under audio/ — see js/speech.js for why the
+// live TTS endpoint could not survive the move to https.
 
 function _stopSpeech() {
-  if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio.src = ''; _ttsAudio = null; }
-  if (window.speechSynthesis) speechSynthesis.cancel();
+  SPEECH.stop();
   document.getElementById('btn-speak').classList.remove('speaking');
 }
 
 function speakQuestion() {
-  _stopSpeech();
-
-  // Strip nikud (U+05B0–U+05C7) before sending to TTS
-  const raw = formatRadioText(currentQ.radioText, currentQ);
-  const text = raw.replace(/[\u05B0-\u05C7]/g, '');
-
   const btn = document.getElementById('btn-speak');
   btn.classList.add('speaking');
   const done = () => btn.classList.remove('speaking');
 
-  // Google Translate TTS — Hebrew, no API key, works from local files
-  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=he&client=tw-ob&q='
-    + encodeURIComponent(text);
-  _ttsAudio = new Audio(url);
-  _ttsAudio.onended = done;
-  _ttsAudio.onerror = done;
-  _ttsAudio.play().catch(done);
+  SPEECH.speak(formatRadioText(currentQ.radioText, currentQ), {
+    onend: done,
+    onerror: done
+  });
 }
 
 // ===== INIT =====
