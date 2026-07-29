@@ -1,0 +1,14 @@
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Node (not used today, but keeps stray installs out of the repo)
+node_modules/
