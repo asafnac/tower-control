@@ -44,9 +44,13 @@ vm.createContext(sandbox);
 
 // Same order as index.html. Top-level `const` from each script lands in the
 // context's global lexical scope, so later scripts see earlier ones.
-['js/curriculum.js', 'js/speech.js', 'js/progress.js', 'tests/tests.js'].forEach(f => {
-  vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sandbox, { filename: f });
-});
+// scene3d.js only touches THREE and the DOM from inside its functions, so it
+// loads cleanly here and its pure parts (body plans, palettes) can be tested
+// without a GPU.
+['js/curriculum.js', 'js/speech.js', 'js/scene3d.js', 'js/progress.js', 'tests/tests.js']
+  .forEach(f => {
+    vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sandbox, { filename: f });
+  });
 
 const result = vm.runInContext('runTests()', sandbox);
 
@@ -78,6 +82,33 @@ if (missing.length) {
   if (missing.length > 12) console.error(`  ...and ${missing.length - 12} more`);
 }
 
-const ok = result.failed === 0 && missing.length === 0;
+// ===== THE THREE.JS BUNDLE MUST CONTAIN WHAT THE SCENE ASKS FOR =====
+// vendor/three.min.js is a tree-shaken slice, so reaching for a class that was
+// not listed in tools/build-three.js fails at runtime as "undefined is not a
+// constructor" — on the child's machine, in the middle of his reward. Catching
+// it here costs one regex.
+const sceneSrc  = fs.readFileSync(path.join(ROOT, 'js', 'scene3d.js'), 'utf8');
+const buildSrc  = fs.readFileSync(path.join(ROOT, 'tools', 'build-three.js'), 'utf8');
+const bundlePath = path.join(ROOT, 'vendor', 'three.min.js');
+const used = [...new Set([...sceneSrc.matchAll(/THREE\.([A-Za-z0-9_]+)/g)].map(m => m[1]))];
+
+const bundleMissing = [];
+if (!fs.existsSync(bundlePath)) {
+  bundleMissing.push('vendor/three.min.js is not built — run: node tools/build-three.js');
+} else {
+  const bundle = fs.readFileSync(bundlePath, 'utf8');
+  used.forEach(name => {
+    if (!new RegExp(`\\b${name}\\b`).test(buildSrc)) {
+      bundleMissing.push(`${name} is used by scene3d.js but not exported in tools/build-three.js`);
+    } else if (!new RegExp(`\\b${name}\\b`).test(bundle)) {
+      bundleMissing.push(`${name} is exported but absent from vendor/three.min.js — rebuild`);
+    }
+  });
+}
+
+console.log(`three: ${used.length} classes used, ${bundleMissing.length} unresolved`);
+bundleMissing.forEach(m => console.error('  ' + m));
+
+const ok = result.failed === 0 && missing.length === 0 && bundleMissing.length === 0;
 console.log(ok ? '\n✅ all good' : '\n❌ failures above');
 process.exit(ok ? 0 : 1);

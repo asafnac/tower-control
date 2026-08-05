@@ -8,6 +8,10 @@
 </head>
 <body>
 
+  <!-- 3D airport (behind all screens). Empty and unused without WebGL, in
+       which case the CSS scene below stays visible instead. -->
+  <div id="scene3d-host" class="scene3d-host" aria-hidden="true"></div>
+
   <!-- Airport background scene (behind all screens) -->
   <div id="airport-bg" class="airport-bg" aria-hidden="true">
     <div class="bg-stars"></div>
@@ -190,9 +194,13 @@
     </div>
   </div>
 
+  <!-- three.js, bundled to a classic script by tools/build-three.js so that
+       opening this file straight off the disk still works. -->
+  <script src="vendor/three.min.js"></script>
   <script src="js/curriculum.js"></script>
   <script src="js/speech.js"></script>
   <script src="js/sfx.js"></script>
+  <script src="js/scene3d.js"></script>
   <script src="js/progress.js"></script>
   <script src="js/game.js"></script>
 </body>

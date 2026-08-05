@@ -299,6 +299,28 @@ function runTests() {
   assert(PLANE_TYPES.length >= 40, `${PLANE_TYPES.length} planes to collect`);
   assert(PLANE_TYPES.some(p => p.rarity === 'legendary'), 'There are legendary planes');
 
+  // ===== 3D LAYER =====
+  // The 3D scenes are a bonus, so the only thing worth asserting without a GPU
+  // is that they cannot be asked for something they do not have: every plane in
+  // the album must map to a body plan that buildAircraft actually builds.
+  if (typeof SCENE3D !== 'undefined') {
+    const PLANS = ['airliner', 'jet', 'rocket', 'heli', 'saucer'];
+    PLANE_TYPES.forEach(p => {
+      assert(PLANS.includes(SCENE3D.bodyPlan(p)),
+        `Plane ${p.id} (${p.emoji}) maps to unknown body plan "${SCENE3D.bodyPlan(p)}"`);
+      const pal = SCENE3D.palette(p);
+      assert(pal && typeof pal.body === 'number' && typeof pal.wing === 'number',
+        `Plane ${p.id} has no usable 3D palette`);
+    });
+    // A shape nobody ever gets is a shape nobody should maintain.
+    PLANS.forEach(plan => {
+      assert(PLANE_TYPES.some(p => SCENE3D.bodyPlan(p) === plan),
+        `No plane in the album is ever built as "${plan}"`);
+    });
+    ['startAirport', 'startLanding', 'endLanding', 'idle', 'supported']
+      .forEach(fn => assert(typeof SCENE3D[fn] === 'function', `SCENE3D.${fn} exists`));
+  }
+
   // ===== READ-ALOUD COVERAGE =====
   // Not optional: the child cannot yet read the questions unaided, so a line
   // without a clip is a line he cannot access.

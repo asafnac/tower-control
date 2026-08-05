@@ -1738,6 +1738,93 @@ body {
 
 .map-stage.completed .map-stage-status { color: var(--color-radar-green); }
 
+/* ===== 3D LAYER ===== */
+.scene3d-host {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.scene3d-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* A moving airport behind live text is a readability problem, not a feature.
+   This scrim darkens the middle of the frame where the menu sits and leaves the
+   edges — where the runway and tower actually are — almost untouched. */
+.scene3d-host::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 58% 45% at 50% 38%,
+                    rgba(6,13,26,0.78) 0%, rgba(6,13,26,0.45) 60%, rgba(6,13,26,0) 100%);
+}
+
+/* The landing screen is the one place the scene IS the content. */
+body.has-3d #screen-landing ~ .scene3d-host::after { background: none; }
+
+/* The CSS airport and the WebGL one must never both be on screen. */
+body.has-3d #airport-bg { display: none; }
+
+/* On the landing screen the canvas replaces the flat sky, but the runway box
+   still has to size it, so the container stays and only its children hide. */
+.landing-sky.is3d > *:not(canvas) { display: none; }
+.landing-sky.is3d { background: #071224; }
+
+/* ===== ALBUM CARD FLIP ===== */
+/* CSS 3D, not WebGL: the back of the card is Hebrew text, and text stays
+   sharpest and right-to-left-correct when the browser lays it out. */
+.plane-card {
+  perspective: 1000px;
+  width: 100%;
+  max-width: 320px;
+  height: 300px;
+  cursor: pointer;
+}
+
+.plane-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.65s cubic-bezier(.2,.8,.25,1);
+  transform-style: preserve-3d;
+}
+
+.plane-card.flipped .plane-card-inner { transform: rotateY(180deg); }
+
+.plane-card-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  border-radius: var(--radius);
+  background: linear-gradient(160deg, #14294a, #0a1730);
+  border: 2px solid var(--color-panel-border);
+}
+
+.plane-card-face.back { transform: rotateY(180deg); }
+
+.plane-card-hint {
+  color: var(--color-text-dim);
+  font-size: 0.8rem;
+  position: absolute;
+  bottom: 12px;
+}
+
+.plane-modal.gold .plane-card-face      { border-color: #ffd700; box-shadow: inset 0 0 26px rgba(255,215,0,0.18); }
+.plane-modal.silver .plane-card-face    { border-color: #c0d4e0; }
+.plane-modal.legendary .plane-card-face { border-color: #cc44ff; box-shadow: inset 0 0 26px rgba(204,68,255,0.22); }
+
 /* ===== ACCESSIBILITY ===== */
 @media (prefers-reduced-motion: reduce) {
   .radar-sweep { animation: none; }

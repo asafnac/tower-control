@@ -22,12 +22,29 @@ const SHIFT_NAMES = ['מִשְׁמֶרֶת בֹּקֶר 🌅', 'מִשְׁמֶר
 const HOURS = { firstTry: 10, correct: 6, revealed: 2, comboStep: 2, shift: 15, mission: 30 };
 
 // ===== SCREEN MANAGEMENT =====
+const $ = id => document.getElementById(id);
+
+// Screens that sit in front of the airport. The question screen is not one of
+// them: it draws its own flat background, so the 3D loop is idled there rather
+// than rendering frames nobody can see.
+const AMBIENT_SCREENS = ['screen-entry', 'screen-report', 'screen-album', 'screen-map'];
+
+let use3D = false;
+
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
-  document.getElementById(id).classList.remove('hidden');
+  $(id).classList.remove('hidden');
+  sync3D(id);
 }
 
-const $ = id => document.getElementById(id);
+/** Point the single 3D canvas at whatever the current screen needs. */
+function sync3D(id) {
+  if (!use3D) return;
+  if (id === 'screen-landing') return;      // the landing world drives itself
+  SCENE3D.endLanding();
+  if (AMBIENT_SCREENS.includes(id)) SCENE3D.startAirport($('scene3d-host'));
+  else SCENE3D.idle();
+}
 
 // ===== ENTRY SCREEN =====
 function initEntry() {
@@ -880,12 +897,25 @@ function openPlaneDetail(plane) {
   modal.id = 'plane-modal';
   modal.className = 'plane-modal' + (rar.cls ? ' ' + rar.cls : '');
 
+  // A collector's card: the plane on the front, the fact on the back, and it
+  // turns over when you touch it.
   modal.innerHTML = `
     <div class="plane-modal-card">
-      <span class="plane-modal-emoji">${plane.emoji}</span>
-      <h3 class="plane-modal-name">${plane.name}</h3>
-      ${rar.cls ? `<span class="plane-modal-gold-badge">${rar.label}</span>` : ''}
-      <p class="plane-modal-fact">${plane.funFact}</p>
+      <div class="plane-card" id="plane-card">
+        <div class="plane-card-inner">
+          <div class="plane-card-face front">
+            <span class="plane-modal-emoji">${plane.emoji}</span>
+            <h3 class="plane-modal-name">${plane.name}</h3>
+            ${rar.cls ? `<span class="plane-modal-gold-badge">${rar.label}</span>` : ''}
+            <span class="plane-card-hint">הַקֵּשׁ כְּדֵי לְהָפֹךְ אֶת הַכַּרְטִיס</span>
+          </div>
+          <div class="plane-card-face back">
+            <h3 class="plane-modal-name">${plane.name}</h3>
+            <p class="plane-modal-fact">${plane.funFact}</p>
+            <span class="plane-card-hint">הַקֵּשׁ כְּדֵי לַחֲזֹר</span>
+          </div>
+        </div>
+      </div>
       <button class="plane-modal-close btn-primary">סָגוּר ✕</button>
     </div>
   `;
@@ -894,6 +924,11 @@ function openPlaneDetail(plane) {
     if (e.target === modal || e.target.classList.contains('plane-modal-close')) {
       modal.classList.add('closing');
       setTimeout(() => modal.remove(), 250);
+      return;
+    }
+    if (e.target.closest('.plane-card')) {
+      SFX.click();
+      $('plane-card').classList.toggle('flipped');
     }
   });
 
@@ -902,9 +937,111 @@ function openPlaneDetail(plane) {
 }
 
 // ===== LANDING MINI-GAME =====
-let _lg = null; // landing game state
+// Two implementations of one game. The 3D approach is the one the child gets
+// when the machine can draw it; the flat version stays because a game that
+// only runs on a good GPU is a game that sometimes does not run.
+let _lg = null; // 2D landing game state
+let _lg3 = null; // 3D landing world
 
 function startLandingGame(plane, onComplete) {
+  return use3D ? startLanding3D(plane, onComplete)
+               : startLanding2D(plane, onComplete);
+}
+
+/** Everything after the wheels touch: identical in both versions. */
+function landingSuccessUI(plane, rar, onDone) {
+  const isRare = !!rar.cls;
+
+  $('landing-msg').textContent = isRare
+    ? '✨ נְחִיתַת זָהָב מוּשְׁלֶמֶת! אַתָּה מַדְהִים! ✨'
+    : '🎉 נְחִיתָה מוּשְׁלֶמֶת! כׇּל הַכָּבוֹד!';
+
+  SPEECH.speak(isRare ? MESSAGES.landing.gold : MESSAGES.landing.normal);
+  SFX.land();
+  if (isRare) setTimeout(() => SFX.rare(), 400);
+
+  const overlay = $('celebrate-overlay');
+  const confettiEl = $('celebrate-confetti');
+  $('celebrate-name').textContent = plane.name;
+  document.querySelector('.celebrate-sub').textContent = isRare ? rar.label : 'מָטוֹס חָדָשׁ!';
+  confettiEl.innerHTML = '';
+  const colors = ['#00ff41','#ffd700','#00bfff','#ff6b9d','#fff700','#cc44ff'];
+  for (let i = 0; i < 28; i++) {
+    const p = document.createElement('div');
+    p.className = 'cel-cp';
+    p.style.cssText = `left:${Math.random()*100}%;width:${7+Math.random()*6}px;height:${7+Math.random()*6}px;background:${colors[i%colors.length]};border-radius:${Math.random()>.45?'50%':'3px'};animation-delay:${Math.random()*.3}s;animation-duration:${.9+Math.random()*.8}s`;
+    confettiEl.appendChild(p);
+  }
+  overlay.classList.add('active');
+  setTimeout(() => {
+    overlay.classList.remove('active');
+    confettiEl.innerHTML = '';
+  }, 1800);
+
+  setTimeout(() => {
+    const btn = $('btn-land');
+    btn.disabled = false;
+    btn.textContent = '✅ לְדוּחַ הַמִּשְׁמֶרֶת';
+    btn.onclick = onDone;
+  }, 2000);
+}
+
+/** Title, message and button — shared setup before either version starts. */
+function landingChrome(plane, rar) {
+  $('landing-title').textContent = (rar.cls ? '✨ ' : '✈ ') + `נְחִית אֶת ${plane.name}!`;
+  $('landing-msg').textContent =
+    'לְחַץ עַל הַכַּפְתּוֹר כַּאֲשֶׁר הַמָּטוֹס מֵעַל הַמַּסְלוּל הַמֶּאִיר!';
+  const btn = $('btn-land');
+  btn.textContent = '✈ לְחַץ לִנְחִיתָה!';
+  btn.disabled = false;
+  btn.className = 'btn-land' + (rar.cls ? ' ' + rar.cls : '');
+  return btn;
+}
+
+// ===== 3D LANDING =====
+function startLanding3D(plane, onComplete) {
+  const rar = RARITY[plane.rarity || 'normal'] || RARITY.normal;
+  const sky = $('landing-sky');
+
+  const btn = landingChrome(plane, rar);
+  sky.classList.add('is3d');            // hides the flat sky, ground and runway
+  showScreen('screen-landing');
+  SFX.whoosh();
+
+  const finish = () => {
+    sky.classList.remove('is3d');
+    SCENE3D.endLanding();
+    _lg3 = null;
+    onComplete();
+  };
+
+  // The canvas needs the container's real size, which only exists once the
+  // screen is on screen.
+  requestAnimationFrame(() => {
+    _lg3 = SCENE3D.startLanding(plane, sky, {
+      onTouchdown: () => landingSuccessUI(plane, rar, finish),
+    });
+
+    // WebGL can still fail at context-creation time on a machine that claimed
+    // to support it. Falling back beats a black rectangle.
+    if (!_lg3) { sky.classList.remove('is3d'); startLanding2D(plane, onComplete); return; }
+
+    btn.onclick = () => {
+      const outcome = _lg3.press();
+      if (outcome === 'landing') {
+        btn.disabled = true;
+        $('landing-msg').textContent = '...יוֹרְדִים לִנְחִיתָה 🛬';
+        SFX.whoosh();
+      } else if (outcome === 'goaround') {
+        SFX.retry();
+        $('landing-msg').textContent = 'עוֹלִים לְסִיבוּב נוֹסָף — הַפַּעַם תַּצְלִיחַ!';
+      }
+    };
+  });
+}
+
+// ===== 2D LANDING (fallback) =====
+function startLanding2D(plane, onComplete) {
   const rar = RARITY[plane.rarity || 'normal'] || RARITY.normal;
 
   _lg = {
@@ -920,16 +1057,8 @@ function startLandingGame(plane, onComplete) {
     RUNWAY_Y:   80,     // filled in after screen shows (% of sky height)
   };
 
-  $('landing-title').textContent = (rar.cls ? '✨ ' : '✈ ') + `נְחִית אֶת ${plane.name}!`;
   $('landing-plane').textContent = plane.emoji;
-  $('landing-msg').textContent =
-    'לְחַץ עַל הַכַּפְתּוֹר כַּאֲשֶׁר הַמָּטוֹס מֵעַל הַמַּסְלוּל הַמֶּאִיר!';
-  const btn = $('btn-land');
-  btn.textContent = '✈ לְחַץ לִנְחִיתָה!';
-  btn.disabled = false;
-  btn.className = 'btn-land' + (rar.cls ? ' ' + rar.cls : '');
-  btn.onclick = _attemptLanding;
-
+  landingChrome(plane, rar).onclick = _attemptLanding;
   $('landing-zone').className = 'landing-zone' + (rar.cls ? ' ' + rar.cls : '');
 
   showScreen('screen-landing');
@@ -1008,48 +1137,15 @@ function _onLandingSuccess() {
   _lg.raf = null;
 
   const planeEl = $('landing-plane');
-  const isRare  = !!_lg.rar.cls;
-
   planeEl.classList.add('lg-landed');
-  SFX.land();
 
-  $('landing-msg').textContent = isRare
-    ? '✨ נְחִיתַת זָהָב מוּשְׁלֶמֶת! אַתָּה מַדְהִים! ✨'
-    : '🎉 נְחִיתָה מוּשְׁלֶמֶת! כׇּל הַכָּבוֹד!';
-
-  SPEECH.speak(isRare ? MESSAGES.landing.gold : MESSAGES.landing.normal);
-  if (isRare) setTimeout(() => SFX.rare(), 400);
-
-  const overlay = $('celebrate-overlay');
-  const confettiEl = $('celebrate-confetti');
-  $('celebrate-name').textContent = _lg.plane.name;
-  document.querySelector('.celebrate-sub').textContent = isRare ? _lg.rar.label : 'מָטוֹס חָדָשׁ!';
-  confettiEl.innerHTML = '';
-  const colors = ['#00ff41','#ffd700','#00bfff','#ff6b9d','#fff700','#cc44ff'];
-  for (let i = 0; i < 28; i++) {
-    const p = document.createElement('div');
-    p.className = 'cel-cp';
-    p.style.cssText = `left:${Math.random()*100}%;width:${7+Math.random()*6}px;height:${7+Math.random()*6}px;background:${colors[i%colors.length]};border-radius:${Math.random()>.45?'50%':'3px'};animation-delay:${Math.random()*.3}s;animation-duration:${.9+Math.random()*.8}s`;
-    confettiEl.appendChild(p);
-  }
-  overlay.classList.add('active');
-  setTimeout(() => {
-    overlay.classList.remove('active');
-    confettiEl.innerHTML = '';
-  }, 1800);
-
-  setTimeout(() => {
-    const btn = $('btn-land');
-    btn.disabled = false;
-    btn.textContent = '✅ לְדוּחַ הַמִּשְׁמֶרֶת';
-    btn.onclick = () => {
-      planeEl.className = 'landing-plane-el';
-      planeEl.style.cssText = '';
-      const { onComplete } = _lg;
-      _lg = null;
-      onComplete();
-    };
-  }, 2000);
+  landingSuccessUI(_lg.plane, _lg.rar, () => {
+    planeEl.className = 'landing-plane-el';
+    planeEl.style.cssText = '';
+    const { onComplete } = _lg;
+    _lg = null;
+    onComplete();
+  });
 }
 
 // ===== MAP SCREEN =====
@@ -1124,6 +1220,11 @@ function speakQuestion() {
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
+  // 3D is a bonus layer, never a requirement. Without WebGL the CSS airport and
+  // the flat landing game carry on exactly as before.
+  use3D = typeof SCENE3D !== 'undefined' && SCENE3D.supported();
+  document.body.classList.toggle('has-3d', use3D);
+
   initEntry();
   showScreen('screen-entry');
 
