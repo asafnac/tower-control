@@ -71,6 +71,16 @@ function initEntry() {
   renderMission();
   renderSoundToggle();
 
+  // Pull anything the other device did, without making him wait for it.
+  SYNC.syncInBackground(saveData, res => {
+    if (!res.ok || res.gained <= 0) return;
+    saveData = res.save;
+    if (!$('screen-entry').classList.contains('hidden')) {
+      renderEntryStats();
+      renderMission();
+    }
+  });
+
   // Use onclick (not addEventListener) to avoid accumulating listeners
   // when initEntry() is called again after returning from report/album/map.
   btnStart.onclick = () => {
@@ -815,6 +825,10 @@ function endShift() {
 
   PROGRESS.save(saveData);
 
+  // Push the shift up before the report is even read. If it fails, nothing
+  // happens — the next launch will carry it.
+  SYNC.syncInBackground(saveData);
+
   const done = () => showReport(correctCount, newPlane, rankUp, missionJustDone);
   if (newPlane) startLandingGame(newPlane, done); else done();
 }
@@ -1291,6 +1305,7 @@ function showParents(notice) {
   // A notice survives the re-render that follows an import — otherwise the
   // confirmation the parent needs to read vanishes the moment it appears.
   $('parents-import-msg').textContent = notice || '';
+  renderSyncBox();
   $('btn-parents-export').onclick = () => exportReport(rep);
   $('btn-parents-import').onclick = () => $('parents-file').click();
   $('parents-file').onchange = e => importSave(e.target.files[0]);
@@ -1309,6 +1324,67 @@ function exportReport() {
   a.download = `tower-control-${PROGRESS.today()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+// ===== SYNC =====
+function renderSyncBox() {
+  const cfg = SYNC.config();
+  $('sync-url').value  = cfg.url  || '';
+  $('sync-code').value = cfg.code || '';
+
+  const status = $('sync-status');
+  if (!SYNC.enabled()) {
+    status.className = 'sync-status';
+    status.textContent = 'לֹא מֻגְדָּר — הַמִּשְׂחָק עוֹבֵד רָגִיל, פָּשׁוּט בְּלִי סִנְכְּרוּן.';
+  } else if (cfg.lastError) {
+    status.className = 'sync-status bad';
+    status.textContent = 'הַסִּנְכְּרוּן הָאַחֲרוֹן נִכְשַׁל: ' + cfg.lastError;
+  } else if (cfg.lastAt) {
+    status.className = 'sync-status good';
+    status.textContent = 'סֻנְכְרַן לְאַחֲרוֹנָה: ' + new Date(cfg.lastAt).toLocaleString('he-IL');
+  } else {
+    status.className = 'sync-status';
+    status.textContent = 'מֻגְדָּר. לְחַץ "סַנְכְּרֵן עַכְשָׁו".';
+  }
+
+  $('btn-sync-new').onclick = () => {
+    $('sync-code').value = SYNC.makeCode();
+    SFX.click();
+  };
+
+  $('btn-sync-save').onclick = () => {
+    const url  = $('sync-url').value.trim();
+    const code = $('sync-code').value.trim().toUpperCase();
+    if (url && !SYNC.validUrl(url)) {
+      status.className = 'sync-status bad';
+      status.textContent = 'הַכְּתֹבֶת חַיֶּבֶת לְהַתְחִיל בְּ-https://';
+      return;
+    }
+    if (code && !SYNC.validCode(code)) {
+      status.className = 'sync-status bad';
+      status.textContent = 'קוֹד לֹא תָּקִין — לְפָחוֹת 16 תָּוִים, אוֹתִיּוֹת וְסִפְרוֹת.';
+      return;
+    }
+    SYNC.setConfig({ url, code, lastError: '' });
+    renderSyncBox();
+    $('sync-status').textContent = 'נִשְׁמַר.';
+  };
+
+  $('btn-sync-now').onclick = async () => {
+    if (!SYNC.enabled()) { $('btn-sync-save').click(); if (!SYNC.enabled()) return; }
+    status.className = 'sync-status';
+    status.textContent = 'מְסַנְכְרֵן...';
+    const res = await SYNC.sync(PROGRESS.load());
+    if (res.ok) {
+      PROGRESS.save(res.save);
+      saveData = res.save;
+      SFX.rare();
+      showParents(`סֻנְכְרַן — ${res.gained > 0 ? res.gained + ' תַּרְגִּילִים חֲדָשִׁים מִמַּכְשִׁיר אַחֵר' : 'הַכֹּל כְּבָר מְעֻדְכָּן'}.`);
+    } else {
+      status.className = 'sync-status bad';
+      status.textContent = 'לֹא הִצְלִיחַ: ' + res.reason;
+    }
+  };
 }
 
 /**
@@ -1411,26 +1487,47 @@ function copyReport(rep) {
 /** Hold, don't tap. The gate is the point — see the note in index.html. */
 function wireParentsButton() {
   const btn = $('btn-parents');
+  const HOLD_MS = 800;
+  const SLOP_PX = 16;      // a finger is not a mouse
   let timer = null;
+  let from = null;
 
   const start = e => {
     e.preventDefault();
+    const pt = e.touches ? e.touches[0] : e;
+    from = { x: pt.clientX, y: pt.clientY };
     btn.classList.add('holding');
+    clearTimeout(timer);
     timer = setTimeout(() => {
+      timer = null;
       btn.classList.remove('holding');
       SFX.rare();
       showParents();
-    }, 800);
+    }, HOLD_MS);
   };
+
   const cancel = () => {
     btn.classList.remove('holding');
     if (timer) { clearTimeout(timer); timer = null; }
   };
 
+  // Movement cancels only once it is real movement. Cancelling on mouseleave —
+  // which is what this used to do — meant a thumb settling by a pixel on a
+  // tablet aborted the press, and the parent just saw a button that did nothing.
+  const moved = e => {
+    if (!from || !timer) return;
+    const pt = e.touches ? e.touches[0] : e;
+    if (Math.hypot(pt.clientX - from.x, pt.clientY - from.y) > SLOP_PX) cancel();
+  };
+
   btn.addEventListener('mousedown', start);
   btn.addEventListener('touchstart', start, { passive: false });
-  ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(ev =>
-    btn.addEventListener(ev, cancel));
+  btn.addEventListener('touchmove', moved, { passive: true });
+  document.addEventListener('mousemove', moved, { passive: true });
+  ['mouseup', 'touchend', 'touchcancel'].forEach(ev => btn.addEventListener(ev, cancel));
+  // Releasing anywhere counts as releasing: a pointer let go off the button must
+  // not leave the timer armed.
+  document.addEventListener('mouseup', cancel);
 }
 
 // ===== TEXT-TO-SPEECH =====

@@ -1884,6 +1884,46 @@ body {
 
 .parents-note { color: var(--color-text-dim); font-size: 0.75rem; text-align: center; }
 
+/* ===== SYNC BOX ===== */
+.sync-box {
+  background: var(--color-panel);
+  border: 1px solid var(--color-panel-border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  width: 100%;
+}
+
+.sync-label { color: var(--color-text-dim); font-size: 0.78rem; }
+
+.sync-input {
+  background: var(--color-sky);
+  border: 1px solid var(--color-panel-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  flex: 1;
+  font-family: monospace;
+  font-size: 0.9rem;
+  min-width: 0;
+  outline: none;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.sync-input:focus { border-color: var(--color-radar-green); }
+
+.sync-row { display: flex; gap: 6px; align-items: center; }
+.sync-row .btn-secondary { flex: 1; font-size: 0.85rem; padding: 8px 10px; }
+.sync-mini { flex: 0 0 auto !important; white-space: nowrap; }
+
+.sync-hint { color: var(--color-text-dim); font-size: 0.75rem; line-height: 1.5; }
+
+.sync-status { color: var(--color-text-dim); font-size: 0.8rem; }
+.sync-status.good { color: var(--color-correct); }
+.sync-status.bad  { color: #ff9d9d; }
+
 /* ===== 3D LAYER ===== */
 .scene3d-host {
   position: fixed;

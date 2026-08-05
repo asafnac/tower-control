@@ -39,6 +39,12 @@ const sandbox = {
     };
   })(),
 };
+// sync.js reaches for the CSPRNG when it mints a code, and for fetch when it
+// talks to a server. The suite exercises the first and never the second.
+sandbox.crypto = { getRandomValues: a => { require('crypto').randomFillSync(a); return a; } };
+// URL is a browser global that a vm context does not get for free, and sync.js
+// parses server addresses with it.
+sandbox.URL = URL;
 sandbox.window = sandbox;
 vm.createContext(sandbox);
 
@@ -48,7 +54,7 @@ vm.createContext(sandbox);
 // loads cleanly here and its pure parts (body plans, palettes) can be tested
 // without a GPU.
 ['js/curriculum.js', 'js/speech.js', 'js/scene3d.js', 'js/analytics.js', 'js/progress.js',
- 'tests/tests.js']
+ 'js/sync.js', 'tests/tests.js']
   .forEach(f => {
     vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sandbox, { filename: f });
   });

@@ -345,6 +345,46 @@ function runTests() {
   assert(PLANE_TYPES.length >= 40, `${PLANE_TYPES.length} planes to collect`);
   assert(PLANE_TYPES.some(p => p.rarity === 'legendary'), 'There are legendary planes');
 
+  // ===== SYNC =====
+  if (typeof SYNC !== 'undefined') {
+    // The code is the only thing standing between a stranger and the slot.
+    const codes = new Set();
+    for (let i = 0; i < 200; i++) {
+      const c = SYNC.makeCode();
+      assert(SYNC.validCode(c), `Generated code "${c}" fails the server's own check`);
+      assert(!/[OI01]/.test(c), 'Generated codes avoid characters that get mistyped');
+      codes.add(c);
+    }
+    assert(codes.size === 200, 'Generated codes are distinct');
+
+    assert(!SYNC.validCode('short'), 'A short code is rejected');
+    assert(!SYNC.validCode('has spaces in it here'), 'A code with spaces is rejected');
+    assert(!SYNC.validCode('../../etc/passwd'), 'A path is never a valid code');
+    assert(!SYNC.validCode(''), 'An empty code is rejected');
+
+    // http:// would be blocked by the browser once the game is served over
+    // https, so it is refused here where the message can explain why.
+    assert(!SYNC.validUrl('http://example.com/tower-sync.php'), 'Plain http is refused');
+    assert(SYNC.validUrl('https://example.com/tower-sync.php'), 'https is accepted');
+    assert(SYNC.validUrl('http://localhost:8790/'), 'localhost is allowed for testing');
+    assert(!SYNC.validUrl('not a url'), 'Junk is refused');
+    assert(!SYNC.validUrl(''), 'Empty is refused');
+
+    // Half-configured must count as off, not as broken.
+    SYNC.setConfig({ url: 'https://example.com/s.php', code: '' });
+    assert(!SYNC.enabled(), 'A URL with no code is not enabled');
+    SYNC.setConfig({ url: '', code: 'ABCDEFGHJKMNPQRS' });
+    assert(!SYNC.enabled(), 'A code with no URL is not enabled');
+    SYNC.setConfig({ url: 'https://example.com/s.php', code: 'ABCDEFGHJKMNPQRS' });
+    assert(SYNC.enabled(), 'Both together are enabled');
+    assert(SYNC.config().url === 'https://example.com/s.php', 'Config round-trips');
+
+    // With no server configured, sync must decline rather than throw.
+    SYNC.setConfig({ url: '', code: '' });
+    const off = SYNC.sync({ log: [] });
+    assert(off && typeof off.then === 'function', 'sync() always returns a promise');
+  }
+
   // ===== ANALYTICS =====
   if (typeof ANALYTICS !== 'undefined') {
     const SKILL_IDS = ANALYTICS.SKILLS.map(s => s.id);

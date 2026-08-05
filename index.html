@@ -192,6 +192,24 @@
 
       <div id="parents-hardest" class="parents-hardest"></div>
 
+      <h3 class="parents-h3">סִנְכְּרוּן בֵּין מַכְשִׁירִים</h3>
+      <div class="sync-box">
+        <label class="sync-label" for="sync-url">כְּתֹבֶת הַשֶּׁרֶת</label>
+        <input type="url" id="sync-url" class="sync-input" dir="ltr"
+               placeholder="https://example.com/tower-sync.php">
+        <label class="sync-label" for="sync-code">קוֹד פַּקָּח</label>
+        <div class="sync-row">
+          <input type="text" id="sync-code" class="sync-input" dir="ltr" placeholder="ABCD...">
+          <button id="btn-sync-new" class="btn-secondary sync-mini">צוֹר קוֹד</button>
+        </div>
+        <p class="sync-hint">הַקְלֵד אֶת אוֹתָהּ כְּתֹבֶת וְאוֹתוֹ קוֹד בְּכׇל מַכְשִׁיר — וְהַכֹּל יִסְתַּנְכְּרֵן לְבַד.</p>
+        <div class="sync-row">
+          <button id="btn-sync-save" class="btn-secondary">שְׁמֹר</button>
+          <button id="btn-sync-now"  class="btn-secondary">סַנְכְּרֵן עַכְשָׁו 🔄</button>
+        </div>
+        <p id="sync-status" class="sync-status"></p>
+      </div>
+
       <div class="parents-actions">
         <button id="btn-parents-export" class="btn-secondary">גִּבּוּי / דּוּחַ 💾</button>
         <button id="btn-parents-import" class="btn-secondary">שַׁחְזֵר מִקֹּבֶץ 📂</button>
@@ -235,6 +253,7 @@
   <script src="js/speech.js"></script>
   <script src="js/sfx.js"></script>
   <script src="js/analytics.js"></script>
+  <script src="js/sync.js"></script>
   <script src="js/scene3d.js"></script>
   <script src="js/progress.js"></script>
   <script src="js/game.js"></script>
