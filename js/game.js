@@ -263,9 +263,11 @@ function showCorrect() {
     animateLanding();
   }
 
-  // Animate altitude drop to result (if altitude visual)
+  // Animate the meter to where the PLANE ends up, which is not always the
+  // answer: on safety-station stages the answer is how far to descend, while
+  // the plane itself stops at 10.
   if (currentQ.visual === 'altitude') {
-    animateAltitudeChange(currentQ.result);
+    animateAltitudeChange(currentQ.destAlt !== undefined ? currentQ.destAlt : currentQ.result);
   }
 
   // Move to next question after celebration ends
@@ -344,7 +346,7 @@ function revealAnswer() {
   SPEECH.speak(revealText);
 
   if (currentQ.visual === 'altitude') {
-    animateAltitudeChange(currentQ.result);
+    animateAltitudeChange(currentQ.destAlt !== undefined ? currentQ.destAlt : currentQ.result);
   }
 
   setTimeout(nextQuestion, 2500);
