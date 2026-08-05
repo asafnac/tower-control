@@ -47,7 +47,8 @@ vm.createContext(sandbox);
 // scene3d.js only touches THREE and the DOM from inside its functions, so it
 // loads cleanly here and its pure parts (body plans, palettes) can be tested
 // without a GPU.
-['js/curriculum.js', 'js/speech.js', 'js/scene3d.js', 'js/progress.js', 'tests/tests.js']
+['js/curriculum.js', 'js/speech.js', 'js/scene3d.js', 'js/analytics.js', 'js/progress.js',
+ 'tests/tests.js']
   .forEach(f => {
     vm.runInContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), sandbox, { filename: f });
   });

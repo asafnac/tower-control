@@ -13,6 +13,8 @@ let practiceMode = false;  // replaying a completed port from the map
 let combo = 0;             // current run of correct answers
 let shiftStats = null;     // { answered, correct, firstTry, bestCombo, hours }
 let bridge = null;         // open safety-station ladder, or null
+let qStarted = 0;          // when the current call was first heard
+let qLadder = false;       // was the ladder opened on this call
 
 const QUESTIONS_PER_SHIFT = 8;
 const SHIFT_NAMES = ['מִשְׁמֶרֶת בֹּקֶר 🌅', 'מִשְׁמֶרֶת צׇהֳרַיִם ☀️', 'מִשְׁמֶרֶת עֶרֶב 🌙'];
@@ -27,7 +29,8 @@ const $ = id => document.getElementById(id);
 // Screens that sit in front of the airport. The question screen is not one of
 // them: it draws its own flat background, so the 3D loop is idled there rather
 // than rendering frames nobody can see.
-const AMBIENT_SCREENS = ['screen-entry', 'screen-report', 'screen-album', 'screen-map'];
+const AMBIENT_SCREENS = ['screen-entry', 'screen-report', 'screen-album', 'screen-map',
+                         'screen-parents'];
 
 let use3D = false;
 
@@ -191,6 +194,8 @@ function loadQuestion(q) {
   currentQ = q;
   attempts = 0;
   bridge = null;
+  qStarted = Date.now();
+  qLadder = false;
   clearAnswer();
 
   $('hdr-progress').textContent = `${shiftIndex + 1}/${QUESTIONS_PER_SHIFT}`;
@@ -419,6 +424,8 @@ function showCorrect(firstTry) {
   $('bridge-panel').classList.add('hidden');
   bridge = null;
 
+  recordAnswer({ n: attempts, revealed: false });
+
   correctCount++;
   combo++;
   shiftStats.answered++;
@@ -447,6 +454,29 @@ function showCorrect(firstTry) {
   }
 
   setTimeout(nextQuestion, 2100);
+}
+
+/**
+ * One row per answered call, for the parent report.
+ *
+ * Stays on this machine, like the rest of the save. It is written at the two
+ * points a question can end — solved, or handed over — so the log can never
+ * drift from what actually happened on screen.
+ */
+function recordAnswer({ n, revealed }) {
+  if (!currentQ) return;
+  ANALYTICS.record(saveData, {
+    t: Date.now(),
+    s: activeStage ? activeStage.id : saveData.currentStage,
+    q: currentQ.type,
+    a: currentQ.a,
+    b: currentQ.b,
+    r: currentQ.result,
+    n: revealed ? 3 : n,
+    l: qLadder,
+    v: revealed,
+    d: Date.now() - qStarted,
+  });
 }
 
 /** Where the plane itself ends up, which is not always the number typed:
@@ -567,6 +597,7 @@ function revealAnswer() {
   $('btn-bridge').classList.add('hidden');
   combo = 0;
   renderCombo();
+  recordAnswer({ n: attempts, revealed: true });
   shiftStats.answered++;
   shiftStats.hours += HOURS.revealed;
 
@@ -590,6 +621,7 @@ function openBridge(isTutorial) {
 
   const b = bridgeSteps(currentQ);
   bridge = { data: b, idx: 0, tries: 0, tutorial: !!isTutorial };
+  qLadder = true;
 
   $('btn-bridge').classList.add('hidden');
   $('hint-area').classList.add('hidden');
@@ -1199,6 +1231,152 @@ function showMap() {
   showScreen('screen-map');
 }
 
+// ===== PARENT REPORT =====
+// Everything below reads the log; nothing here writes to it, and nothing leaves
+// the machine unless the parent presses export.
+
+const SKILL_STATUS = {
+  solid:           { label: 'שׁוֹלֵט',            cls: 'solid'  },
+  'accurate-slow': { label: 'נָכוֹן, לֹא מָהִיר',  cls: 'slow'   },
+  working:         { label: 'בַּדֶּרֶךְ',          cls: 'working' },
+  weak:            { label: 'דּוֹרֵשׁ חִיזּוּק',   cls: 'weak'   },
+  thin:            { label: 'מְעַט נְתוּנִים',     cls: 'thin'   },
+  unseen:          { label: 'עוֹד לֹא הִגִּיעַ',   cls: 'thin'   },
+};
+
+function showParents() {
+  saveData = PROGRESS.load();
+  const rep = ANALYTICS.analyse(saveData.log);
+
+  const fmtDate = t => t ? new Date(t).toLocaleDateString('he-IL') : '—';
+  $('parents-sub').textContent = rep.total
+    ? `${saveData.playerName || 'הַפַּקָּח'} · ${rep.total} תַּרְגִּילִים בְּ-${rep.days} יְמֵי מִשְׂחָק · ${fmtDate(rep.from)}–${fmtDate(rep.to)}`
+    : 'עוֹד לֹא נֶאֱסְפוּ נְתוּנִים.';
+
+  // Headline numbers.
+  const cards = [
+    ['נָכוֹן בַּנִּסָּיוֹן הָרִאשׁוֹן', rep.total ? rep.firstTryPct + '%' : '—'],
+    ['זְמַן חֲצִיוֹנִי לִתְשׁוּבָה',    rep.total ? rep.medianSeconds + ' שְׁנִיּוֹת' : '—'],
+    ['נֶחְשְׂפָה תְּשׁוּבָה',           rep.total ? rep.revealPct + '%' : '—'],
+    ['נָמֵל נוֹכְחִי',                  `${saveData.currentStage} מִתּוֹךְ ${PROGRESS.maxStage()}`],
+  ];
+  $('parents-summary').innerHTML = cards.map(([k, v]) =>
+    `<div class="pcard"><span class="pcard-v">${v}</span><span class="pcard-k">${k}</span></div>`).join('');
+
+  // Skills, in teaching order, skipping what he has not met yet.
+  const seen = rep.skills.filter(s => s.samples > 0);
+  $('parents-skills').innerHTML = seen.length ? seen.map(s => {
+    const st = SKILL_STATUS[s.status] || SKILL_STATUS.thin;
+    const bar = Math.max(2, s.recentPct);
+    return `<div class="pskill">
+        <div class="pskill-head">
+          <span class="pskill-name">${s.label}</span>
+          <span class="pskill-status ${st.cls}">${st.label}</span>
+        </div>
+        <div class="pskill-bar"><div class="pskill-fill ${st.cls}" style="width:${bar}%"></div></div>
+        <div class="pskill-meta">${s.recentPct}% לְאַחֲרוֹנָה · ${s.samples} תַּרְגִּילִים · ${s.seconds} שְׁנִיּוֹת${
+          s.ladderPct ? ` · סֻלָּם בְּ-${s.ladderPct}%` : ''}</div>
+      </div>`;
+  }).join('') : '<p class="parents-empty">אֵין עֲדַיִין תַּרְגִּילִים מֻקְלָטִים.</p>';
+
+  $('parents-recs').innerHTML = rep.recommendations.map(r =>
+    `<div class="prec p${r.priority}"><strong>${r.title}</strong><span>${r.detail}</span></div>`).join('');
+
+  $('parents-hardest').innerHTML = rep.hardest.length
+    ? `<h3 class="parents-h3">תַּרְגִּילִים שֶׁחוֹזְרִים וְנִתְקָעִים</h3>
+       <div class="phard">${rep.hardest.map(f =>
+         `<span class="phard-item">${f.fact}<em>${f.missPct}%</em></span>`).join('')}</div>`
+    : '';
+
+  $('btn-parents-export').onclick = () => exportReport(rep);
+  $('btn-parents-copy').onclick   = () => copyReport(rep);
+  $('btn-parents-back').onclick   = () => { showScreen('screen-entry'); initEntry(); };
+
+  showScreen('screen-parents');
+}
+
+/** The raw log as a file — this is what gets handed to someone who can dig. */
+function exportReport() {
+  const data = ANALYTICS.exportPayload(saveData);
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tower-control-${PROGRESS.today()}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/** The same report as plain text, for pasting into a message. */
+function reportText(rep) {
+  const lines = [];
+  lines.push(`מגדל הפיקוח — דוח ל${saveData.playerName || 'פקח'}`);
+  lines.push(`${rep.total} תרגילים ב-${rep.days} ימי משחק · נמל ${saveData.currentStage}/${PROGRESS.maxStage()}`);
+  lines.push(`נכון בניסיון ראשון: ${rep.firstTryPct}% · זמן חציוני: ${rep.medianSeconds}ש · נחשפה תשובה: ${rep.revealPct}%`);
+  if (rep.trend) lines.push(`מגמה: ${rep.trend.early}% ← ${rep.trend.late}%`);
+  lines.push('');
+  lines.push('מיומנויות:');
+  rep.skills.filter(s => s.samples > 0).forEach(s => {
+    const st = (SKILL_STATUS[s.status] || SKILL_STATUS.thin).label;
+    lines.push(`  ${s.label} — ${st} · ${s.recentPct}% · ${s.samples} תרגילים · ${s.seconds}ש` +
+               (s.ladderPct ? ` · סולם ${s.ladderPct}%` : ''));
+  });
+  if (rep.hardest.length) {
+    lines.push('');
+    lines.push('נתקע בעיקר ב: ' + rep.hardest.map(f => `${f.fact} (${f.missPct}%)`).join(', '));
+  }
+  lines.push('');
+  lines.push('המלצות:');
+  rep.recommendations.forEach(r => lines.push(`  • ${r.title}: ${r.detail}`));
+  return lines.join('\n');
+}
+
+function copyReport(rep) {
+  const text = reportText(rep);
+  const done = ok => {
+    const btn = $('btn-parents-copy');
+    btn.textContent = ok ? 'הֹעְתַּק ✓' : 'לֹא הִצְלִיחַ לְהַעְתִּיק';
+    setTimeout(() => { btn.textContent = 'הַעְתֵּק דּוּחַ 📋'; }, 2000);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => done(true), () => done(false));
+  } else {
+    // file:// in some browsers has no clipboard API at all.
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    ta.remove();
+    done(ok);
+  }
+}
+
+/** Hold, don't tap. The gate is the point — see the note in index.html. */
+function wireParentsButton() {
+  const btn = $('btn-parents');
+  let timer = null;
+
+  const start = e => {
+    e.preventDefault();
+    btn.classList.add('holding');
+    timer = setTimeout(() => {
+      btn.classList.remove('holding');
+      SFX.rare();
+      showParents();
+    }, 800);
+  };
+  const cancel = () => {
+    btn.classList.remove('holding');
+    if (timer) { clearTimeout(timer); timer = null; }
+  };
+
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('touchstart', start, { passive: false });
+  ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(ev =>
+    btn.addEventListener(ev, cancel));
+}
+
 // ===== TEXT-TO-SPEECH =====
 // Backed by pre-generated clips under audio/ — see js/speech.js for why the
 // live TTS endpoint could not survive the move to https.
@@ -1226,6 +1404,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.body.classList.toggle('has-3d', use3D);
 
   initEntry();
+  wireParentsButton();
   showScreen('screen-entry');
 
   document.querySelectorAll('.num-btn[data-n]').forEach(btn => {

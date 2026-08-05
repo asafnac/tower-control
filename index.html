@@ -63,6 +63,7 @@
       <div id="entry-stats" class="entry-stats hidden"></div>
       <div id="entry-rank" class="rank-badge hidden"></div>
       <button id="btn-sound" class="btn-sound" title="צְלִילִים">🔊</button>
+      <button id="btn-parents" class="btn-parents" title="דּוּחַ לַהוֹרִים — לְחִיצָה אֲרֻכָּה">📊</button>
     </div>
   </div>
 
@@ -172,6 +173,36 @@
     </div>
   </div>
 
+  <!-- Screen 7: Parent report.
+       Reached by holding the 📊 button, not by tapping it — this screen is for
+       the grown-up. The whole game is built on the child never being graded,
+       and a percentage he can open himself would undo that in one tap. -->
+  <div id="screen-parents" class="screen hidden">
+    <div class="screen-content">
+      <h2>דּוּחַ לַהוֹרִים</h2>
+      <p id="parents-sub" class="parents-sub"></p>
+
+      <div id="parents-summary" class="parents-summary"></div>
+
+      <h3 class="parents-h3">מִיוּמָנֻיּוֹת</h3>
+      <div id="parents-skills" class="parents-skills"></div>
+
+      <h3 class="parents-h3">הַמְלָצוֹת</h3>
+      <div id="parents-recs" class="parents-recs"></div>
+
+      <div id="parents-hardest" class="parents-hardest"></div>
+
+      <div class="parents-actions">
+        <button id="btn-parents-export" class="btn-secondary">הוֹרֵד קֹבֶץ נְתוּנִים 💾</button>
+        <button id="btn-parents-copy"   class="btn-secondary">הַעְתֵּק דּוּחַ 📋</button>
+      </div>
+      <p class="parents-note">
+        כׇּל הַנְּתוּנִים נִשְׁמָרִים רַק בַּדַּפְדְּפָן הַזֶּה וְלֹא נִשְׁלָחִים לְשׁוּם מָקוֹם.
+      </p>
+      <button id="btn-parents-back" class="btn-secondary">חֲזוֹר</button>
+    </div>
+  </div>
+
   <!-- Screen 6: Landing Mini-Game -->
   <div id="screen-landing" class="screen hidden">
     <p id="landing-title" class="landing-title"></p>
@@ -200,6 +231,7 @@
   <script src="js/curriculum.js"></script>
   <script src="js/speech.js"></script>
   <script src="js/sfx.js"></script>
+  <script src="js/analytics.js"></script>
   <script src="js/scene3d.js"></script>
   <script src="js/progress.js"></script>
   <script src="js/game.js"></script>

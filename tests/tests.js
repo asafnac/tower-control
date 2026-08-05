@@ -299,6 +299,95 @@ function runTests() {
   assert(PLANE_TYPES.length >= 40, `${PLANE_TYPES.length} planes to collect`);
   assert(PLANE_TYPES.some(p => p.rarity === 'legendary'), 'There are legendary planes');
 
+  // ===== ANALYTICS =====
+  if (typeof ANALYTICS !== 'undefined') {
+    const SKILL_IDS = ANALYTICS.SKILLS.map(s => s.id);
+
+    // Every exercise the game can ask must land in a named skill. A question
+    // that falls through to "other" is invisible in the report — the parent
+    // would be told the child has not met something he practises every day.
+    CURRICULUM.stages.forEach(stage => {
+      stage.questions.forEach((q, j) => {
+        const skill = ANALYTICS.skillOf({ q: q.type, a: q.a, b: q.b, r: q.result });
+        assert(SKILL_IDS.includes(skill),
+          `Stage ${stage.id} Q${j + 1} (${q.type} ${q.a},${q.b}) maps to "${skill}", not a known skill`);
+      });
+    });
+
+    // And every skill must be reachable, or the report shows a row that can
+    // never fill in.
+    SKILL_IDS.forEach(id => {
+      const found = CURRICULUM.stages.some(s => s.questions.some(q =>
+        ANALYTICS.skillOf({ q: q.type, a: q.a, b: q.b, r: q.result }) === id));
+      assert(found, `No question in the curriculum ever exercises skill "${id}"`);
+    });
+
+    // The bridging ports must map to the bridging skills — this is the pair the
+    // whole report is watched for.
+    const p8 = CURRICULUM.stages.find(s => s.id === 8);
+    assert(p8.questions.every(q =>
+      ANALYTICS.skillOf({ q: q.type, a: q.a, b: q.b, r: q.result }) === 'bridgeSub'),
+      'Every port 8 question counts as crossing-ten subtraction');
+
+    // The log is a rolling window: a save must not grow forever.
+    const big = { log: [] };
+    for (let i = 0; i < ANALYTICS.MAX_ROWS + 250; i++) {
+      ANALYTICS.record(big, { t: i, s: 8, q: 'bridge-sub', a: 16, b: 9, r: 7, n: 0, d: 4000 });
+    }
+    assert(big.log.length === ANALYTICS.MAX_ROWS, `Log capped at ${ANALYTICS.MAX_ROWS}`);
+    assert(big.log[big.log.length - 1].t === ANALYTICS.MAX_ROWS + 249, 'Newest row is kept');
+    assert(big.log[0].t === 250, 'Oldest rows are the ones dropped');
+
+    // A wandering-off answer must not be recorded as thinking for an hour.
+    const capped = ANALYTICS.record({ log: [] },
+      { t: 1, s: 1, q: 'addition', a: 2, b: 3, r: 5, n: 0, d: 60 * 60 * 1000 });
+    assert(capped.log[0].d === ANALYTICS.MAX_THINK_MS, 'Absurd think times are clamped');
+
+    // An empty log must produce a report, not an exception.
+    const empty = ANALYTICS.analyse([]);
+    assert(empty.total === 0 && !empty.enough, 'Empty log analyses to an empty report');
+    assert(Array.isArray(empty.recommendations), 'Empty log still returns recommendations array');
+
+    // A thin log must refuse to judge rather than judge wrongly.
+    const thin = ANALYTICS.analyse(Array.from({ length: 4 }, (_, i) =>
+      ({ t: i, s: 8, q: 'bridge-sub', a: 16, b: 9, r: 7, n: 2, l: 1, v: 0, d: 9000 })));
+    assert(!thin.enough, 'Four answers is not enough to judge');
+    assert(thin.recommendations.length === 1 &&
+           thin.recommendations[0].title.includes('נְתוּנִים'),
+      'A thin log says so instead of recommending drills');
+
+    // A child who gets a skill wrong repeatedly must be flagged weak, and the
+    // recommendation must name the port to practise.
+    const struggling = Array.from({ length: 20 }, (_, i) =>
+      ({ t: i * 60000, s: 8, q: 'bridge-sub', a: 16, b: 9, r: 7, n: 2, l: 1, v: 0, d: 15000 }));
+    const sRep = ANALYTICS.analyse(struggling);
+    const bs = sRep.skills.find(s => s.id === 'bridgeSub');
+    assert(bs.status === 'weak', `Twenty missed bridge-subs reads as weak (got "${bs.status}")`);
+    assert(sRep.recommendations.some(r => r.detail.includes('נָמֵל 8')),
+      'The weak-skill recommendation names port 8');
+
+    // And a child who has it must be told he has it, not drilled anyway.
+    const fluent = Array.from({ length: 20 }, (_, i) =>
+      ({ t: i * 60000, s: 8, q: 'bridge-sub', a: 15, b: 8, r: 7, n: 0, l: 0, v: 0, d: 4000 }));
+    const fRep = ANALYTICS.analyse(fluent);
+    assert(fRep.skills.find(s => s.id === 'bridgeSub').status === 'solid',
+      'Twenty clean bridge-subs reads as solid');
+    assert(!fRep.recommendations.some(r => r.title.startsWith('לְחַזֵּק')),
+      'A fluent child gets no "needs work" recommendation');
+
+    // Accurate but slow is its own diagnosis, and must not be called weak.
+    const slow = Array.from({ length: 20 }, (_, i) =>
+      ({ t: i * 60000, s: 8, q: 'bridge-sub', a: 15, b: 8, r: 7, n: 0, l: 0, v: 0, d: 25000 }));
+    assert(ANALYTICS.analyse(slow).skills.find(s => s.id === 'bridgeSub').status === 'accurate-slow',
+      'Right-but-slow is reported as slow, not as weak');
+
+    // Revealed answers must never be counted as first-try successes.
+    const revealed = Array.from({ length: 20 }, (_, i) =>
+      ({ t: i * 60000, s: 8, q: 'bridge-sub', a: 16, b: 9, r: 7, n: 0, l: 0, v: 1, d: 5000 }));
+    assert(ANALYTICS.analyse(revealed).firstTryPct === 0,
+      'A revealed answer is not a first-try answer');
+  }
+
   // ===== 3D LAYER =====
   // The 3D scenes are a bonus, so the only thing worth asserting without a GPU
   // is that they cannot be asked for something they do not have: every plane in
