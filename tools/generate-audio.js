@@ -37,58 +37,41 @@ function loadCurriculum() {
   const src = fs.readFileSync(path.join(ROOT, 'js', 'curriculum.js'), 'utf8');
   // Top-level `const` is lexically scoped and never lands on the sandbox object,
   // so hand the values out explicitly from inside the same script run.
-  const out = vm.runInContext(src + '\n;({ CURRICULUM, MESSAGES });', ctx);
-  if (!out || !out.CURRICULUM || !out.MESSAGES) {
-    throw new Error('curriculum.js did not define CURRICULUM and MESSAGES');
+  const out = vm.runInContext(src + '\n;({ CURRICULUM, MESSAGES, collectSpokenLines });', ctx);
+  if (!out || !out.CURRICULUM || typeof out.collectSpokenLines !== 'function') {
+    throw new Error('curriculum.js did not define CURRICULUM and collectSpokenLines');
   }
   return out;
 }
 
-/** Same substitution the game does at runtime. */
-function render(template, q) {
-  return template
-    .replace(/{a}/g, q.a)
-    .replace(/{b}/g, q.b)
-    .replace(/{result}/g, q.result);
-}
-
-/** Every distinct line the game can ever speak. */
-function collectPhrases({ CURRICULUM, MESSAGES }) {
+/**
+ * Every distinct line the game can ever speak.
+ *
+ * The enumeration lives in curriculum.js next to the content, not here: the
+ * ladder prompts are assembled at runtime from templates, and a copy of that
+ * assembly in this file would drift the first time a prompt was reworded — and
+ * drift means a silent button, which is the one failure mode this whole
+ * pipeline exists to prevent.
+ */
+function collectPhrases({ collectSpokenLines }) {
   const out = new Map(); // normalized -> { text, source }
-
-  const add = (text, source) => {
+  collectSpokenLines().forEach((text, i) => {
     const norm = SPEECH.normalize(text);
-    if (!norm) return;
-    if (!out.has(norm)) out.set(norm, { text, source });
-  };
-
-  CURRICULUM.stages.forEach(stage => {
-    stage.questions.forEach((q, i) => {
-      add(render(q.radioText, q), `stage ${stage.id} q${i + 1}`);
-    });
+    if (!norm || out.has(norm)) return;
+    out.set(norm, { text, source: 'line ' + (i + 1) });
   });
-
-  MESSAGES.correct.forEach((m, i) => add(m, `correct[${i}]`));
-  MESSAGES.retry.forEach((m, i)   => add(m, `retry[${i}]`));
-
-  // The reveal line is templated on the answer, so it needs one clip per
-  // distinct result that actually occurs in the curriculum.
-  const results = new Set();
-  CURRICULUM.stages.forEach(s => s.questions.forEach(q => results.add(q.result)));
-  [...results].sort((a, b) => a - b).forEach(r => {
-    add(MESSAGES.reveal.replace(/{result}/g, r), `reveal(${r})`);
-  });
-
-  add(MESSAGES.landing.normal, 'landing.normal');
-  add(MESSAGES.landing.gold,   'landing.gold');
-
   return [...out.values()];
 }
 
-function fetchClip(text) {
-  const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=he&client=tw-ob&q='
-    + encodeURIComponent(text);
+// Two ways in to the same voice. The plain translate.google.com host is blocked
+// from some networks (it answers 403 to the CONNECT itself), while the API host
+// with client=gtx is not — so try both before giving up on a line.
+const TTS_HOSTS = [
+  t => 'https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=he&client=gtx&q=' + encodeURIComponent(t),
+  t => 'https://translate.google.com/translate_tts?ie=UTF-8&tl=he&client=tw-ob&q=' + encodeURIComponent(t),
+];
 
+function fetchFrom(url) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
       headers: {
@@ -120,6 +103,14 @@ function fetchClip(text) {
     req.on('error', reject);
     req.setTimeout(20000, () => req.destroy(new Error('timeout')));
   });
+}
+
+async function fetchClip(text) {
+  let last;
+  for (const toUrl of TTS_HOSTS) {
+    try { return await fetchFrom(toUrl(text)); } catch (err) { last = err; }
+  }
+  throw last;
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));

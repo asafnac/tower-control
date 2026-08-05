@@ -8,9 +8,18 @@ let selectedAnswer = null; // currently selected number
 let shiftQuestions = [];   // 8-question array for this shift
 let shiftIndex = 0;        // which question in the shift we're on
 let correctCount = 0;      // how many correct this shift
+let activeStage = null;    // stage being played (not always the current stage)
+let practiceMode = false;  // replaying a completed port from the map
+let combo = 0;             // current run of correct answers
+let shiftStats = null;     // { answered, correct, firstTry, bestCombo, hours }
+let bridge = null;         // open safety-station ladder, or null
 
 const QUESTIONS_PER_SHIFT = 8;
 const SHIFT_NAMES = ['מִשְׁמֶרֶת בֹּקֶר 🌅', 'מִשְׁמֶרֶת צׇהֳרַיִם ☀️', 'מִשְׁמֶרֶת עֶרֶב 🌙'];
+
+// Flight hours are a score that only ever grows. Trying is worth something,
+// getting there alone is worth more.
+const HOURS = { firstTry: 10, correct: 6, revealed: 2, comboStep: 2, shift: 15, mission: 30 };
 
 // ===== SCREEN MANAGEMENT =====
 function showScreen(id) {
@@ -18,19 +27,29 @@ function showScreen(id) {
   document.getElementById(id).classList.remove('hidden');
 }
 
+const $ = id => document.getElementById(id);
+
 // ===== ENTRY SCREEN =====
 function initEntry() {
   saveData = PROGRESS.load();
-  const nameInput = document.getElementById('player-name');
-  const btnStart  = document.getElementById('btn-start');
-  const rankEl    = document.getElementById('entry-rank');
+  SFX.enabled = saveData.soundOn !== false;
+
+  const nameInput = $('player-name');
+  const btnStart  = $('btn-start');
+  const rankEl    = $('entry-rank');
 
   if (saveData.playerName) {
     nameInput.value = saveData.playerName;
     const rank = PROGRESS.getRankForStage(saveData.currentStage);
     rankEl.textContent = `${rank.emoji} דַּרְגָּה: ${rank.name}`;
     rankEl.classList.remove('hidden');
+  } else {
+    rankEl.classList.add('hidden');
   }
+
+  renderEntryStats();
+  renderMission();
+  renderSoundToggle();
 
   // Use onclick (not addEventListener) to avoid accumulating listeners
   // when initEntry() is called again after returning from report/album/map.
@@ -39,7 +58,8 @@ function initEntry() {
     if (!name) { nameInput.focus(); return; }
     saveData.playerName = name;
     PROGRESS.save(saveData);
-    startShift();
+    SFX.whoosh();
+    startShift(saveData.currentStage, false);
   };
 
   nameInput.onkeydown = e => {
@@ -47,13 +67,56 @@ function initEntry() {
   };
 }
 
+function renderEntryStats() {
+  const el = $('entry-stats');
+  if (!saveData.playerName) { el.classList.add('hidden'); return; }
+
+  const parts = [];
+  if (saveData.streakDays > 1) parts.push(`🔥 ${saveData.streakDays} יָמִים בָּרָצַף`);
+  parts.push(`⏱️ ${saveData.flightHours || 0} שְׁעוֹת טִיסָה`);
+  parts.push(`✈️ ${saveData.planesCollected.length}/${PLANE_TYPES.length} מְטוֹסִים`);
+  el.innerHTML = parts.map(p => `<span>${p}</span>`).join('');
+  el.classList.remove('hidden');
+}
+
+function renderMission() {
+  const el = $('entry-mission');
+  if (!saveData.playerName) { el.classList.add('hidden'); return; }
+
+  const m = PROGRESS.currentMission(saveData);
+  el.innerHTML = `<span class="mission-label">🎯 מְשִׂימַת הַיּוֹם</span>
+                  <span class="mission-text">${m.text}</span>`;
+  el.className = 'mission-card' + (m.done ? ' done' : '');
+  if (m.done) el.querySelector('.mission-label').textContent = '✅ מְשִׂימַת הַיּוֹם הֻשְׁלְמָה';
+  el.classList.remove('hidden');
+}
+
+function renderSoundToggle() {
+  const btn = $('btn-sound');
+  const on  = saveData.soundOn !== false;
+  btn.textContent = on ? '🔊' : '🔇';
+  btn.title = on ? 'כַּבֵּה צְלִילִים' : 'הַדְלֵק צְלִילִים';
+  btn.onclick = () => {
+    saveData.soundOn = !(saveData.soundOn !== false);
+    SFX.enabled = saveData.soundOn;
+    PROGRESS.save(saveData);
+    renderSoundToggle();
+    if (SFX.enabled) SFX.click();
+  };
+}
+
 // ===== START SHIFT =====
-function startShift() {
-  const stage = CURRICULUM.stages.find(s => s.id === saveData.currentStage)
+function startShift(stageId, practice) {
+  activeStage = CURRICULUM.stages.find(s => s.id === stageId)
              || CURRICULUM.stages[CURRICULUM.stages.length - 1];
+  practiceMode = !!practice;
 
   // Shuffle and take QUESTIONS_PER_SHIFT questions
-  const pool = stage.questions.map(q => ({ ...q, visual: stage.visual }));
+  const pool = activeStage.questions.map(q => ({
+    ...q,
+    visual: q.visual || activeStage.visual,
+    altMax: q.altMax || activeStage.altMax || 20,
+  }));
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -61,70 +124,102 @@ function startShift() {
   shiftQuestions = pool.slice(0, QUESTIONS_PER_SHIFT);
   shiftIndex = 0;
   correctCount = 0;
+  combo = 0;
+  bridge = null;
+  shiftStats = { answered: 0, correct: 0, firstTry: 0, bestCombo: 0, hours: 0,
+                 total: QUESTIONS_PER_SHIFT };
 
-  // Set header
+  PROGRESS.touchDay(saveData);
+  PROGRESS.save(saveData);
+
+  // Header
   const rank = PROGRESS.getRankForStage(saveData.currentStage);
-  document.getElementById('hdr-rank').textContent = `${rank.emoji} ${rank.name}`;
-  document.getElementById('hdr-name').textContent = saveData.playerName;
-  const shiftName = SHIFT_NAMES[saveData.shiftsCompleted % 3];
-  document.getElementById('hdr-shift').textContent = shiftName;
+  $('hdr-rank').textContent = `${rank.emoji} ${rank.name}`;
+  $('hdr-name').textContent = saveData.playerName;
+  $('hdr-shift').textContent = practiceMode
+    ? `🛠️ אִימּוּן — ${activeStage.name}`
+    : SHIFT_NAMES[saveData.shiftsCompleted % 3];
+  renderCombo();
 
   showScreen('screen-game');
   loadQuestion(shiftQuestions[0]);
 }
 
+function renderCombo() {
+  const el = $('hdr-combo');
+  if (combo >= 2) {
+    el.textContent = `🔥 ×${combo}`;
+    el.classList.remove('hidden');
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
 // ===== QUESTION DISPLAY =====
 function formatRadioText(template, q) {
-  return template
-    .replace(/{a}/g, q.a)
-    .replace(/{b}/g, q.b)
-    .replace(/{result}/g, q.result);
+  return fillTemplate(template, q);
+}
+
+function setRadio(text, speak) {
+  $('radio-text').textContent = text;
+  if (speak) SPEECH.speak(text);
 }
 
 function loadQuestion(q) {
-  // Stop any ongoing speech from the previous question
   _stopSpeech();
 
   currentQ = q;
   attempts = 0;
-  selectedAnswer = null;
+  bridge = null;
+  clearAnswer();
 
-  // Update progress counter
-  document.getElementById('hdr-progress').textContent =
-    `${shiftIndex + 1}/${QUESTIONS_PER_SHIFT}`;
+  $('hdr-progress').textContent = `${shiftIndex + 1}/${QUESTIONS_PER_SHIFT}`;
 
-  // Set radio text
-  document.getElementById('radio-text').textContent = formatRadioText(q.radioText, q);
-
-  // Reset radio bubble style
-  const bubble = document.getElementById('radio-bubble');
+  const bubble = $('radio-bubble');
   bubble.classList.remove('correct', 'retry');
 
-  // Reset answer display
-  document.getElementById('answer-value').textContent = '—';
-  document.getElementById('answer-display').classList.remove('selected');
-  document.getElementById('btn-submit').disabled = true;
+  $('hint-area').classList.add('hidden');
+  $('hint-text').textContent = '';
+  $('bridge-panel').classList.add('hidden');
 
-  // Hide hint
-  document.getElementById('hint-area').classList.add('hidden');
+  // The ladder button exists only where there is a ten to cross.
+  const canBridge = q.hint === 'bridge';
+  $('btn-bridge').classList.toggle('hidden', !canBridge);
 
-  // Show correct visual
+  showVisual(q);
+
+  SFX.radio();
+  setRadio(formatRadioText(q.radioText, q), true);
+
+  // The very first ten-crossing question the child ever meets opens the ladder
+  // by itself. After that it is his to call for.
+  if (canBridge && !saveData.bridgeTaught) {
+    saveData.bridgeTaught = true;
+    PROGRESS.save(saveData);
+    setTimeout(() => { if (currentQ === q && !bridge) openBridge(true); }, 2600);
+  }
+}
+
+function showVisual(q) {
   if (q.visual === 'altitude') {
-    showAltitudeMeter(q);
-    document.getElementById('radar-screen').style.display = 'none';
-    document.getElementById('altitude-meter').classList.remove('hidden');
+    $('radar-screen').style.display = 'none';
+    $('altitude-meter').classList.remove('hidden');
+    renderAltitude(q);
   } else {
     showRadarPlanes(q);
-    document.getElementById('radar-screen').style.display = '';
-    document.getElementById('altitude-meter').classList.add('hidden');
+    $('radar-screen').style.display = '';
+    $('altitude-meter').classList.add('hidden');
   }
 }
 
 // ===== RADAR VISUAL =====
 function showRadarPlanes(q) {
-  const container = document.getElementById('radar-planes');
+  const container = $('radar-planes');
   container.innerHTML = '';
-  const total = q.type === 'addition' ? q.a + q.b : q.a;
+  const total  = q.type === 'addition' ? q.a + q.b : q.a;
   const landed = q.type === 'subtraction' ? q.b : 0;
 
   // Place planes at fixed positions on a circle inside radar
@@ -147,67 +242,124 @@ function showRadarPlanes(q) {
   }
 }
 
-// ===== ALTITUDE METER VISUAL =====
-function showAltitudeMeter(q) {
-  const altitude = q.a; // starting altitude
-  const maxAlt = 20;
-  const pct = (altitude / maxAlt) * 100;
+// ===== ALTITUDE METER =====
+// One meter serves both scales. Up to 20 it is the safety station at 10; up to
+// 100 every ten is a marked flight level, and the one the plane is sitting in
+// is lit. The child sees the same idea twice at two sizes, which is the point.
 
-  document.getElementById('alt-fill').style.height = pct + '%';
-  document.getElementById('alt-number').textContent = altitude;
+function altMaxOf(q) { return q.altMax || 20; }
 
-  // Show decomposition for altitude-type questions
-  const decompose = document.getElementById('alt-decompose');
-  if (q.hint === 'decompose' && (altitude > 10 || q.result > 10)) {
-    document.getElementById('decompose-units').textContent = (altitude > 10 ? altitude : q.result) - 10;
-    decompose.classList.remove('hidden');
-  } else {
-    decompose.classList.add('hidden');
+function renderAltitude(q) {
+  const max = altMaxOf(q);
+  const meter = $('altitude-meter');
+  meter.classList.toggle('tall', max > 20);
+
+  // Tick marks, one per ten.
+  const ticks = $('alt-ticks');
+  ticks.innerHTML = '';
+  const step = 10;
+  for (let v = step; v <= max; v += step) {
+    // Only 10 is the safety station. The top of a 0–20 meter is just a ceiling,
+    // and labelling it "safety level 20" would teach a station that isn't one.
+    const isStation = max <= 20 && v === 10;
+    const tick = document.createElement('div');
+    tick.className = 'alt-tick' + (isStation ? ' safety' : '');
+    tick.style.bottom = (v / max * 100) + '%';
+    tick.dataset.value = v;
+    const label = document.createElement('span');
+    label.className = 'alt-tick-label';
+    label.textContent = isStation ? 'תַּחֲנַת הָעֲשָׂרָה — 10' : v;
+    tick.appendChild(label);
+    ticks.appendChild(tick);
   }
+
+  setAltitude(q.a, max, false);
+  highlightLevel(q.a, max);
+  renderDecompose(q);
+}
+
+/** Move the needle. `animate` is only false when placing it for a new question. */
+function setAltitude(value, max, animate = true) {
+  const fill = $('alt-fill');
+  fill.style.transition = animate ? '' : 'none';
+  fill.style.height = Math.max(0, Math.min(100, value / max * 100)) + '%';
+  if (!animate) { void fill.offsetHeight; fill.style.transition = ''; }
+  $('alt-number').textContent = value;
+}
+
+/** Light the ten the plane is currently inside. */
+function highlightLevel(value, max) {
+  const level = Math.floor(value / 10) * 10;
+  document.querySelectorAll('.alt-tick').forEach(t => {
+    t.classList.toggle('active', Number(t.dataset.value) === level);
+  });
+}
+
+/** The "40 + 7" strip under the meter. Shown where it helps, hidden where it
+ *  would hand over the very number being asked for. */
+function renderDecompose(q, force) {
+  const box = $('alt-decompose');
+  const hide = () => box.classList.add('hidden');
+
+  // Splitting a number is the answer on the decomposition ports, and the method
+  // being practised on the bridging ports. Neither gets it for free.
+  const givesItAway = (q.type === 'decompose' || q.type === 'split' || q.type === 'tens');
+  if (!force && (q.hint !== 'decompose' || givesItAway)) return hide();
+
+  // Which number is worth splitting: where the plane is, or — when it starts
+  // exactly on a ten — where it is heading.
+  const n = q.a > 10 ? q.a : (q.result > 10 ? q.result : q.a);
+  const tens  = Math.floor(n / 10) * 10;
+  const units = n - tens;
+  if (tens === 0) return hide();
+
+  $('decompose-ten').textContent   = tens;
+  $('decompose-units').textContent = units;
+  box.classList.remove('hidden');
 }
 
 // ===== NUMBER PAD =====
+function clearAnswer() {
+  selectedAnswer = null;
+  $('answer-value').textContent = '—';
+  $('answer-display').classList.remove('selected');
+  $('btn-submit').disabled = true;
+}
+
 function handleNumPress(n) {
   if (n === 'clear') {
-    selectedAnswer = null;
-    document.getElementById('answer-value').textContent = '—';
-    document.getElementById('answer-display').classList.remove('selected');
-    document.getElementById('btn-submit').disabled = true;
+    SFX.click();
+    clearAnswer();
     return;
   }
 
   const digit = parseInt(n, 10);
 
-  // Allow two-digit answers (for results up to 19)
+  // Answers now run up to 100, so the pad composes up to three digits and
+  // starts over the moment the number would leave the map.
   if (selectedAnswer === null) {
     selectedAnswer = digit;
-  } else if (selectedAnswer < 10) {
-    // Append digit to form two-digit number
-    const twoDigit = selectedAnswer * 10 + digit;
-    if (twoDigit <= 19) {
-      selectedAnswer = twoDigit;
-    } else {
-      selectedAnswer = digit; // start fresh
-    }
   } else {
-    selectedAnswer = digit; // start fresh if already 2 digits
+    const next = selectedAnswer * 10 + digit;
+    selectedAnswer = next <= 100 ? next : digit;
   }
 
-  document.getElementById('answer-value').textContent = selectedAnswer;
-  document.getElementById('answer-display').classList.add('selected');
-  document.getElementById('btn-submit').disabled = false;
+  SFX.key(digit);
+  $('answer-value').textContent = selectedAnswer;
+  $('answer-display').classList.add('selected');
+  $('btn-submit').disabled = false;
 }
 
 // ===== ANSWER HANDLING =====
 function handleSubmit() {
   if (selectedAnswer === null) return;
+  if (bridge) return submitBridgeStep();
 
   if (selectedAnswer === currentQ.result) {
-    showCorrect();
+    showCorrect(attempts === 0);
   } else {
     attempts++;
     if (attempts >= 3) {
-      // Reveal answer gently
       revealAnswer();
     } else {
       showWrong();
@@ -215,112 +367,159 @@ function handleSubmit() {
   }
 }
 
-function showCelebration() {
-  const overlay  = document.getElementById('celebrate-overlay');
-  const nameEl   = document.getElementById('celebrate-name');
-  const confetti = document.getElementById('celebrate-confetti');
+function showCelebration(title, sub) {
+  const overlay  = $('celebrate-overlay');
+  const confetti = $('celebrate-confetti');
 
-  nameEl.textContent = saveData.playerName + '!';
+  $('celebrate-name').textContent = title || (saveData.playerName + '!');
+  document.querySelector('.celebrate-sub').textContent = sub || 'אַתָּה פַּקָּח מְצֻיָּן!';
 
-  // Confetti burst
   confetti.innerHTML = '';
   const colors = ['#00ff41','#ff9500','#00bfff','#ff6b9d','#fff700','#cc44ff'];
   for (let i = 0; i < 32; i++) {
     const p = document.createElement('div');
     p.className = 'cel-cp';
-    p.style.left             = (Math.random() * 100) + '%';
-    p.style.width            = (6 + Math.random() * 7) + 'px';
-    p.style.height           = (6 + Math.random() * 7) + 'px';
-    p.style.background       = colors[i % colors.length];
-    p.style.borderRadius     = Math.random() > .45 ? '50%' : '2px';
+    p.style.left              = (Math.random() * 100) + '%';
+    p.style.width             = (6 + Math.random() * 7) + 'px';
+    p.style.height            = (6 + Math.random() * 7) + 'px';
+    p.style.background        = colors[i % colors.length];
+    p.style.borderRadius      = Math.random() > .45 ? '50%' : '2px';
     p.style.animationDelay    = (Math.random() * .35) + 's';
     p.style.animationDuration = (.8 + Math.random() * .9) + 's';
     confetti.appendChild(p);
   }
 
   overlay.classList.add('active');
-
-
   setTimeout(() => {
     overlay.classList.remove('active');
     setTimeout(() => { confetti.innerHTML = ''; }, 300);
   }, 1700);
 }
 
-function showCorrect() {
-  document.getElementById('btn-submit').disabled = true;
+function showCorrect(firstTry) {
+  $('btn-submit').disabled = true;
+  $('btn-bridge').classList.add('hidden');
+  $('bridge-panel').classList.add('hidden');
+  bridge = null;
+
   correctCount++;
-  const bubble = document.getElementById('radio-bubble');
-  bubble.classList.add('correct');
-  showCelebration();
+  combo++;
+  shiftStats.answered++;
+  shiftStats.correct++;
+  if (firstTry) shiftStats.firstTry++;
+  shiftStats.bestCombo = Math.max(shiftStats.bestCombo, combo);
+  shiftStats.hours += firstTry ? HOURS.firstTry : HOURS.correct;
+  if (combo >= 3) shiftStats.hours += HOURS.comboStep;
+  renderCombo();
 
-  const chosenResponse = MESSAGES.correct[Math.floor(Math.random() * MESSAGES.correct.length)];
-  document.getElementById('radio-text').textContent = chosenResponse;
-  SPEECH.speak(chosenResponse);
+  $('radio-bubble').classList.add('correct');
+  SFX.correct(combo);
 
-  // Animate landing on radar (if planes visual)
-  if (currentQ.visual === 'planes' && currentQ.type === 'subtraction') {
-    animateLanding();
-  }
+  // A milestone in the streak gets its own call sign; otherwise a normal one.
+  const milestone = MESSAGES.combo[combo];
+  const line = milestone
+    || MESSAGES.correct[Math.floor(Math.random() * MESSAGES.correct.length)];
+  setRadio(line, true);
+  showCelebration(milestone ? `🔥 ${combo} בָּרָצַף!` : null,
+                  milestone ? saveData.playerName + '!' : null);
 
-  // Animate the meter to where the PLANE ends up, which is not always the
-  // answer: on safety-station stages the answer is how far to descend, while
-  // the plane itself stops at 10.
+  if (currentQ.visual === 'planes' && currentQ.type === 'subtraction') animateLanding();
   if (currentQ.visual === 'altitude') {
-    animateAltitudeChange(currentQ.destAlt !== undefined ? currentQ.destAlt : currentQ.result);
+    const dest = currentQ.destAlt !== undefined ? currentQ.destAlt : landingAltitude(currentQ);
+    animateAltitudeChange(dest, altMaxOf(currentQ));
   }
 
-  // Move to next question after celebration ends
   setTimeout(nextQuestion, 2100);
 }
 
+/** Where the plane itself ends up, which is not always the number typed:
+ *  "how many tens are in 60" is answered 6 but nothing moves to 6. */
+function landingAltitude(q) {
+  if (q.type === 'tens' || q.type === 'split') return q.a;
+  return q.result;
+}
+
 function showWrong() {
-  const bubble = document.getElementById('radio-bubble');
+  const bubble = $('radio-bubble');
   bubble.classList.add('retry');
   setTimeout(() => bubble.classList.remove('retry'), 500);
 
-  const retryText = MESSAGES.retry[attempts - 1] || MESSAGES.retry[0];
-  document.getElementById('radio-text').textContent = retryText;
-  SPEECH.speak(retryText);
+  combo = 0;
+  renderCombo();
+  SFX.retry();
 
-  // Restore the original question after a short pause
+  const retryText = MESSAGES.retry[attempts - 1] || MESSAGES.retry[0];
+  setRadio(retryText, true);
+
   const originalText = formatRadioText(currentQ.radioText, currentQ);
   setTimeout(() => {
-    document.getElementById('radio-text').textContent = originalText;
+    if (!bridge) $('radio-text').textContent = originalText;
   }, 1500);
 
-  // Reset answer for retry
-  selectedAnswer = null;
-  document.getElementById('answer-value').textContent = '—';
-  document.getElementById('answer-display').classList.remove('selected');
-  document.getElementById('btn-submit').disabled = true;
+  clearAnswer();
 
-  // Show hint after first wrong
+  // A ten-crossing question does not get dots — it gets the ladder, straight
+  // away, because dots are exactly what this method replaces.
+  if (currentQ.hint === 'bridge') {
+    if (attempts === 1) setTimeout(() => { if (currentQ && !bridge) openBridge(false); }, 1600);
+    return;
+  }
   if (attempts === 1) showHint(1);
   if (attempts === 2) showHint(2);
 }
 
 function showHint(level) {
-  const hintArea = document.getElementById('hint-area');
-  const hintDots = document.getElementById('hint-dots');
+  const hintArea = $('hint-area');
+  const hintDots = $('hint-dots');
+  const hintText = $('hint-text');
   hintArea.classList.remove('hidden');
   hintDots.innerHTML = '';
+  hintText.textContent = '';
+  // A hint the child has to scroll to find is not a hint.
+  setTimeout(() => hintArea.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 60);
 
-  if (currentQ.visual === 'altitude' && level >= 1) {
-    // Show decomposition
-    const decompose = document.getElementById('alt-decompose');
-    decompose.classList.remove('hidden');
-    // Pulse the safety line
-    const line = document.querySelector('.alt-safety-line');
-    line.classList.remove('pulse');
-    void line.offsetWidth; // force reflow
-    line.classList.add('pulse');
-    setTimeout(() => line.classList.remove('pulse'), 2000);
+  if (currentQ.hint === 'levels') {
+    // Two-digit work. The first hint names the flight level the plane is in;
+    // only the second one splits the number all the way, because on the
+    // place-value questions that split IS the answer.
+    const tens   = Math.floor(currentQ.a / 10) * 10;
+    const units  = currentQ.a - tens;
+    const isSplit = currentQ.type === 'split' || currentQ.type === 'tens';
+    pulseTicks();
+
+    // "How many tens" is not helped by being told which ten you are in — it is
+    // helped by being pointed at the marks and asked to count them.
+    if (currentQ.type === 'tens') {
+      hintText.textContent = level === 1
+        ? `כׇּל קַו בַּמַּד הוּא עֲשָׂרָה אַחַת — סְפֹר אֶת הַקַּוִּים עַד ${currentQ.a}`
+        : `${currentQ.a} זֶה ${currentQ.a / 10} עֲשָׂרוֹת`;
+      return;
+    }
+
+    if (level === 1) {
+      hintText.textContent = `${currentQ.a} נִמְצָא בְּרָמַת טִיסָה ${tens}`;
+      if (!isSplit) renderDecompose(currentQ, true);
+      return;
+    }
+
+    renderDecompose(currentQ, true);
+    hintText.textContent = `${currentQ.a} זֶה ${tens} וְעוֹד ${units}`;
+    if (!isSplit && currentQ.b !== undefined) {
+      hintText.textContent += (currentQ.b % 10 === 0)
+        ? ` — וְ-${currentQ.b} הֵן עֲשָׂרוֹת, אָז רַק הָעֲשָׂרוֹת זָזוֹת`
+        : ` — וְ-${currentQ.b} הֵן יְחִידוֹת, אָז רַק הַיְּחִידוֹת זָזוֹת`;
+    }
+    return;
+  }
+
+  if (currentQ.visual === 'altitude') {
+    renderDecompose(currentQ, true);
+    pulseTicks();
     return;
   }
 
   // Dots hint for planes visual
-  const total = currentQ.type === 'addition' ? currentQ.a + currentQ.b : currentQ.a;
+  const total   = currentQ.type === 'addition' ? currentQ.a + currentQ.b : currentQ.a;
   const crossed = currentQ.type === 'subtraction' ? currentQ.b : 0;
   for (let i = 0; i < total; i++) {
     const dot = document.createElement('div');
@@ -330,7 +529,6 @@ function showHint(level) {
   }
 
   if (level >= 2) {
-    // Group dots visually — add separator after first group
     const separator = document.createElement('div');
     separator.style.width = '100%';
     const separatorIndex = currentQ.type === 'subtraction' ? crossed : currentQ.a;
@@ -338,18 +536,140 @@ function showHint(level) {
   }
 }
 
+function pulseTicks() {
+  document.querySelectorAll('.alt-tick').forEach(t => {
+    t.classList.remove('pulse');
+    void t.offsetWidth;
+    t.classList.add('pulse');
+    setTimeout(() => t.classList.remove('pulse'), 2000);
+  });
+}
+
 function revealAnswer() {
-  document.getElementById('btn-submit').disabled = true;
-  const revealText = MESSAGES.reveal.replace(/{result}/g, currentQ.result);
-  document.getElementById('radio-text').textContent = revealText;
-  // The child who missed three times is exactly the one who needs to hear it.
-  SPEECH.speak(revealText);
+  $('btn-submit').disabled = true;
+  $('btn-bridge').classList.add('hidden');
+  combo = 0;
+  renderCombo();
+  shiftStats.answered++;
+  shiftStats.hours += HOURS.revealed;
+
+  SFX.reveal();
+  setRadio(fillTemplate(MESSAGES.reveal, { result: currentQ.result }), true);
 
   if (currentQ.visual === 'altitude') {
-    animateAltitudeChange(currentQ.destAlt !== undefined ? currentQ.destAlt : currentQ.result);
+    const dest = currentQ.destAlt !== undefined ? currentQ.destAlt : landingAltitude(currentQ);
+    animateAltitudeChange(dest, altMaxOf(currentQ));
   }
 
-  setTimeout(nextQuestion, 2500);
+  setTimeout(nextQuestion, 2800);
+}
+
+// ===== תחנת העשרה — הסולם =====
+// Three real questions instead of one told answer. The meter moves after each
+// step, so the child watches the plane stop at the station he just computed.
+
+function openBridge(isTutorial) {
+  if (!currentQ || currentQ.hint !== 'bridge') return;
+
+  const b = bridgeSteps(currentQ);
+  bridge = { data: b, idx: 0, tries: 0, tutorial: !!isTutorial };
+
+  $('btn-bridge').classList.add('hidden');
+  $('hint-area').classList.add('hidden');
+  const panel = $('bridge-panel');
+  panel.classList.remove('hidden');
+  renderBridgeRungs();
+  setTimeout(() => panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 60);
+
+  SFX.whoosh();
+  setRadio(b.intro, true);
+  clearAnswer();
+
+  setTimeout(() => { if (bridge) askBridgeStep(); }, 2600);
+}
+
+function renderBridgeRungs() {
+  const rungs = $('bridge-rungs');
+  rungs.innerHTML = '';
+  const b = bridge.data;
+  const labels = [`עַד ${b.stop}`, 'הַשְּׁאָר', 'הַגּוֹבַהּ'];
+  labels.forEach((label, i) => {
+    const rung = document.createElement('div');
+    rung.className = 'bridge-rung'
+      + (i <  bridge.idx ? ' done'   : '')
+      + (i === bridge.idx ? ' active' : '');
+    const val = i < bridge.idx ? bridge.data.steps[i].answer : '?';
+    rung.innerHTML = `<span class="rung-label">${label}</span>
+                      <span class="rung-value">${val}</span>`;
+    rungs.appendChild(rung);
+  });
+}
+
+function askBridgeStep() {
+  const step = bridge.data.steps[bridge.idx];
+  bridge.tries = 0;
+  renderBridgeRungs();
+  clearAnswer();
+  setRadio(step.prompt, true);
+}
+
+function submitBridgeStep() {
+  const step = bridge.data.steps[bridge.idx];
+  // The last rung is answered ~2.5s before the question hands over. A child who
+  // keeps tapping in that window used to land here with no rung left.
+  if (!step) return;
+
+  if (selectedAnswer === step.answer) {
+    SFX.correct(1);
+    bridge.idx++;
+    renderBridgeRungs();
+
+    if (currentQ.visual === 'altitude') {
+      animateAltitudeChange(step.alt, altMaxOf(currentQ));
+    }
+
+    if (bridge.idx >= bridge.data.steps.length) {
+      // The last rung IS the answer to the original call.
+      setRadio(bridge.data.done, true);
+      setTimeout(() => {
+        if (!bridge) return;
+        bridge = null;
+        // Reaching it on the ladder counts as correct — but never as first-try,
+        // so "answered it alone" stays a real distinction.
+        showCorrect(false);
+      }, 2600);
+      clearAnswer();
+      $('btn-submit').disabled = true;
+      return;
+    }
+
+    setTimeout(() => { if (bridge) askBridgeStep(); }, 900);
+    clearAnswer();
+    return;
+  }
+
+  // Wrong rung. Nudge once, then hand it over and keep climbing — a child stuck
+  // on rung 1 must never be stuck on the whole method.
+  bridge.tries++;
+  SFX.retry();
+  clearAnswer();
+
+  if (bridge.tries >= 2) {
+    $('bridge-rungs').children[bridge.idx].classList.add('revealed');
+    setRadio(`הַתְּשׁוּבָה כָּאן הִיא ${step.answer}. מַמְשִׁיכִים!`, false);
+    setTimeout(() => {
+      if (!bridge) return;
+      selectedAnswer = step.answer;
+      submitBridgeStep();
+    }, 1800);
+    return;
+  }
+
+  const bubble = $('radio-bubble');
+  bubble.classList.add('retry');
+  setTimeout(() => bubble.classList.remove('retry'), 500);
+  setRadio(MESSAGES.retry[0], true);
+  setTimeout(() => { if (bridge) setRadio(step.prompt, false); }, 1600);
 }
 
 // ===== ANIMATIONS =====
@@ -357,22 +677,23 @@ function animateLanding() {
   const dots = document.querySelectorAll('.plane-dot:not(.landed)');
   if (dots.length > 0) {
     dots[dots.length - 1].classList.add('landed');
+    SFX.land();
   }
 }
 
-function animateAltitudeChange(targetAlt) {
-  const maxAlt = 20;
-  const pct = (targetAlt / maxAlt) * 100;
-  document.getElementById('alt-fill').style.height = pct + '%';
-  document.getElementById('alt-number').textContent = targetAlt;
+function animateAltitudeChange(targetAlt, max) {
+  setAltitude(targetAlt, max, true);
+  highlightLevel(targetAlt, max);
 
-  // If arriving exactly at 10, pulse the safety line
-  if (targetAlt === 10) {
-    const line = document.querySelector('.alt-safety-line');
-    line.classList.remove('pulse');
-    void line.offsetWidth;
-    line.classList.add('pulse');
-    setTimeout(() => line.classList.remove('pulse'), 2000);
+  // Stopping exactly on a ten is the thing being taught — make it visible.
+  if (targetAlt % 10 === 0 && targetAlt > 0) {
+    document.querySelectorAll('.alt-tick').forEach(t => {
+      if (Number(t.dataset.value) !== targetAlt) return;
+      t.classList.remove('pulse');
+      void t.offsetWidth;
+      t.classList.add('pulse');
+      setTimeout(() => t.classList.remove('pulse'), 2000);
+    });
   }
 }
 
@@ -386,53 +707,77 @@ function nextQuestion() {
   loadQuestion(shiftQuestions[shiftIndex]);
 }
 
-function endShift() {
-  saveData.shiftsCompleted = (saveData.shiftsCompleted || 0) + 1;
-  saveData.currentStageShifts = (saveData.currentStageShifts || 0) + 1;
+/** Weighted pick, so a legendary card stays something that happens to you. */
+function pickReward(uncollected) {
+  const bigLeagues = saveData.currentStage >= 8 || (saveData.streakDays || 0) >= 3;
+  let pool = uncollected.filter(p => bigLeagues || p.rarity !== 'legendary');
+  if (!pool.length) pool = uncollected;
 
-  // Advance after every 2 shifts on this stage with ≥6/8 correct
-  const shouldAdvance = correctCount >= 6 && (saveData.currentStageShifts % 2 === 0);
+  const weight = p => (RARITY[p.rarity || 'normal'] || RARITY.normal).weight;
+  const total  = pool.reduce((s, p) => s + weight(p), 0);
+  let roll = Math.random() * total;
+  for (const p of pool) {
+    roll -= weight(p);
+    if (roll <= 0) return p;
+  }
+  return pool[pool.length - 1];
+}
+
+function endShift() {
+  shiftStats.hours += HOURS.shift;
+
+  saveData.shiftsCompleted = (saveData.shiftsCompleted || 0) + 1;
+  saveData.bestCombo = Math.max(saveData.bestCombo || 0, shiftStats.bestCombo);
+
+  // Today's mission, checked against what actually happened this shift.
+  const mission = PROGRESS.currentMission(saveData);
+  let missionJustDone = false;
+  if (!mission.done && mission.check(shiftStats)) {
+    PROGRESS.markMissionDone(saveData, mission.day);
+    shiftStats.hours += HOURS.mission;
+    missionJustDone = true;
+  }
+
+  PROGRESS.addFlightHours(saveData, shiftStats.hours);
 
   let rankUp = false;
-  let newPlane = null;
 
-  if (shouldAdvance) {
-    saveData.currentStageShifts = 0; // reset for next stage (or stays at 7)
-    if (saveData.currentStage < 7) {
+  // Practice runs never move the map — they are there to be safe.
+  if (!practiceMode) {
+    saveData.currentStageShifts = (saveData.currentStageShifts || 0) + 1;
+    const shouldAdvance = correctCount >= 6 && (saveData.currentStageShifts % 2 === 0);
+
+    if (shouldAdvance && saveData.currentStage < PROGRESS.maxStage()) {
+      saveData.currentStageShifts = 0;
       const oldRank = PROGRESS.getRankForStage(saveData.currentStage).name;
       PROGRESS.completeStage(saveData, saveData.currentStage);
-      const newRank = PROGRESS.getRankForStage(saveData.currentStage).name;
-      rankUp = (newRank !== oldRank);
+      rankUp = PROGRESS.getRankForStage(saveData.currentStage).name !== oldRank;
+    } else if (shouldAdvance) {
+      // Already at the last port: mark it done, stay there.
+      saveData.currentStageShifts = 0;
+      PROGRESS.completeStage(saveData, saveData.currentStage);
     }
   }
 
   // Award a random plane not yet collected
   const uncollected = PLANE_TYPES.filter(p => !saveData.planesCollected.includes(p.id));
-  if (uncollected.length > 0) {
-    const awarded = uncollected[Math.floor(Math.random() * uncollected.length)];
-    PROGRESS.addPlane(saveData, awarded.id);
-    newPlane = awarded;
-  }
+  const newPlane = uncollected.length ? pickReward(uncollected) : null;
+  if (newPlane) PROGRESS.addPlane(saveData, newPlane.id);
 
   PROGRESS.save(saveData);
 
-  // Landing mini-game as reward if a new plane was collected
-  if (newPlane) {
-    startLandingGame(newPlane, () => showReport(correctCount, newPlane, rankUp));
-  } else {
-    showReport(correctCount, null, rankUp);
-  }
+  const done = () => showReport(correctCount, newPlane, rankUp, missionJustDone);
+  if (newPlane) startLandingGame(newPlane, done); else done();
 }
 
 // ===== SHIFT REPORT =====
-function showReport(correct, newPlane, rankUp) {
-  const planesEl  = document.getElementById('report-planes');
-  const msgEl     = document.getElementById('report-msg');
-  const planeEl   = document.getElementById('report-new-plane');
-  const rankEl    = document.getElementById('report-rank-up');
-  const btnCont   = document.getElementById('btn-continue');
+function showReport(correct, newPlane, rankUp, missionJustDone) {
+  const planesEl = $('report-planes');
+  const msgEl    = $('report-msg');
+  const planeEl  = $('report-new-plane');
+  const rankEl   = $('report-rank-up');
+  const btnCont  = $('btn-continue');
 
-  // Show plane emojis for each correct answer (always show at least one)
   planesEl.innerHTML = '';
   const displayPlanes = Math.max(correct, 1);
   for (let i = 0; i < displayPlanes; i++) {
@@ -454,12 +799,20 @@ function showReport(correct, newPlane, rankUp) {
   }
   msgEl.textContent = msg;
 
+  // Numbers that only ever go up.
+  const stats = $('report-stats');
+  const rows = [
+    `⏱️ +${shiftStats.hours} שְׁעוֹת טִיסָה`,
+    `🔥 רֶצֶף הַשִּׂיא בַּמִּשְׁמֶרֶת: ${shiftStats.bestCombo}`,
+  ];
+  if (saveData.streakDays > 1) rows.push(`📅 ${saveData.streakDays} יָמִים בָּרָצַף`);
+  if (missionJustDone) rows.push('🎯 מְשִׂימַת הַיּוֹם הֻשְׁלְמָה!');
+  stats.innerHTML = rows.map(r => `<span>${r}</span>`).join('');
+
   if (newPlane) {
-    const isGold = newPlane.rarity === 'gold';
-    planeEl.textContent = isGold
-      ? `✨ כֶּרְטִיס זָהָב נָדִיר! ${newPlane.emoji} ${newPlane.name} ✨`
-      : `מָטוֹס חָדָשׁ בָּאַלְבּוּם: ${newPlane.emoji} ${newPlane.name}`;
-    planeEl.className = 'new-plane-badge' + (isGold ? ' gold' : '');
+    const rar = RARITY[newPlane.rarity || 'normal'] || RARITY.normal;
+    planeEl.textContent = `${rar.label}: ${newPlane.emoji} ${newPlane.name}`;
+    planeEl.className = 'new-plane-badge ' + rar.cls;
     planeEl.classList.remove('hidden');
   } else {
     planeEl.classList.add('hidden');
@@ -469,12 +822,13 @@ function showReport(correct, newPlane, rankUp) {
     const rank = PROGRESS.getRankForStage(saveData.currentStage);
     rankEl.textContent = `קִידּוּם! דַּרְגָּה חֲדָשָׁה: ${rank.emoji} ${rank.name}`;
     rankEl.classList.remove('hidden');
+    SFX.rankUp();
   } else {
     rankEl.classList.add('hidden');
   }
 
-  // Continue button goes back to entry screen
   btnCont.onclick = () => {
+    SFX.click();
     showScreen('screen-entry');
     initEntry();
   };
@@ -484,27 +838,29 @@ function showReport(correct, newPlane, rankUp) {
 
 // ===== ALBUM SCREEN =====
 function showAlbum() {
-  const grid = document.getElementById('album-grid');
+  const grid = $('album-grid');
   grid.innerHTML = '';
 
   PLANE_TYPES.forEach(p => {
     const slot = document.createElement('div');
     const collected = saveData.planesCollected.includes(p.id);
-    const isGold = p.rarity === 'gold';
+    const rar = RARITY[p.rarity || 'normal'] || RARITY.normal;
 
     slot.className = 'album-slot'
       + (collected ? ' collected' : ' empty')
-      + (collected && isGold ? ' gold' : '');
+      + (collected && rar.cls ? ' ' + rar.cls : '');
     slot.textContent = collected ? p.emoji : '❓';
     slot.title = collected ? p.name : '???';
 
-    if (collected) {
-      slot.addEventListener('click', () => openPlaneDetail(p));
-    }
+    if (collected) slot.addEventListener('click', () => openPlaneDetail(p));
     grid.appendChild(slot);
   });
 
-  document.getElementById('btn-album-back').onclick = () => {
+  $('album-count').textContent =
+    `${saveData.planesCollected.length} מִתּוֹךְ ${PLANE_TYPES.length}`;
+
+  $('btn-album-back').onclick = () => {
+    SFX.click();
     showScreen('screen-entry');
     initEntry();
   };
@@ -514,26 +870,26 @@ function showAlbum() {
 
 // ===== PLANE DETAIL POPUP =====
 function openPlaneDetail(plane) {
-  // Remove any existing modal
-  const existing = document.getElementById('plane-modal');
+  const existing = $('plane-modal');
   if (existing) existing.remove();
 
-  const isGold = plane.rarity === 'gold';
+  const rar = RARITY[plane.rarity || 'normal'] || RARITY.normal;
+  if (rar.cls) SFX.rare(); else SFX.click();
+
   const modal = document.createElement('div');
   modal.id = 'plane-modal';
-  modal.className = 'plane-modal' + (isGold ? ' gold' : '');
+  modal.className = 'plane-modal' + (rar.cls ? ' ' + rar.cls : '');
 
   modal.innerHTML = `
     <div class="plane-modal-card">
       <span class="plane-modal-emoji">${plane.emoji}</span>
       <h3 class="plane-modal-name">${plane.name}</h3>
-      ${isGold ? '<span class="plane-modal-gold-badge">✨ כֶּרְטִיס זָהָב נָדִיר!</span>' : ''}
+      ${rar.cls ? `<span class="plane-modal-gold-badge">${rar.label}</span>` : ''}
       <p class="plane-modal-fact">${plane.funFact}</p>
       <button class="plane-modal-close btn-primary">סָגוּר ✕</button>
     </div>
   `;
 
-  // Close on backdrop click or close button
   modal.addEventListener('click', e => {
     if (e.target === modal || e.target.classList.contains('plane-modal-close')) {
       modal.classList.add('closing');
@@ -542,7 +898,6 @@ function openPlaneDetail(plane) {
   });
 
   document.body.appendChild(modal);
-  // Trigger animation next frame
   requestAnimationFrame(() => modal.classList.add('open'));
 }
 
@@ -550,10 +905,10 @@ function openPlaneDetail(plane) {
 let _lg = null; // landing game state
 
 function startLandingGame(plane, onComplete) {
-  const isGold = plane.rarity === 'gold';
+  const rar = RARITY[plane.rarity || 'normal'] || RARITY.normal;
 
   _lg = {
-    plane, onComplete,
+    plane, onComplete, rar,
     x:        -15,      // plane left position, % of sky width. starts off-screen
     vx:       0.42,     // % per frame (≈0.42 * 60fps = 25% per second → 5s loop)
     y:        20,       // plane top position, % of sky height
@@ -565,34 +920,29 @@ function startLandingGame(plane, onComplete) {
     RUNWAY_Y:   80,     // filled in after screen shows (% of sky height)
   };
 
-  // Set up UI
-  document.getElementById('landing-title').textContent =
-    (isGold ? '✨ ' : '✈ ') + `נְחִית אֶת ${plane.name}!`;
-  document.getElementById('landing-plane').textContent = plane.emoji;
-  document.getElementById('landing-msg').textContent =
+  $('landing-title').textContent = (rar.cls ? '✨ ' : '✈ ') + `נְחִית אֶת ${plane.name}!`;
+  $('landing-plane').textContent = plane.emoji;
+  $('landing-msg').textContent =
     'לְחַץ עַל הַכַּפְתּוֹר כַּאֲשֶׁר הַמָּטוֹס מֵעַל הַמַּסְלוּל הַמֶּאִיר!';
-  const btn = document.getElementById('btn-land');
+  const btn = $('btn-land');
   btn.textContent = '✈ לְחַץ לִנְחִיתָה!';
   btn.disabled = false;
-  btn.className = 'btn-land' + (isGold ? ' gold' : '');
+  btn.className = 'btn-land' + (rar.cls ? ' ' + rar.cls : '');
   btn.onclick = _attemptLanding;
 
-  // Style landing zone for gold planes
-  document.getElementById('landing-zone').className =
-    'landing-zone' + (isGold ? ' gold' : '');
+  $('landing-zone').className = 'landing-zone' + (rar.cls ? ' ' + rar.cls : '');
 
   showScreen('screen-landing');
+  SFX.whoosh();
 
-  // Compute RUNWAY_Y after screen is visible
   requestAnimationFrame(() => {
-    const skyEl   = document.getElementById('landing-sky');
-    const planeEl = document.getElementById('landing-plane');
+    const skyEl   = $('landing-sky');
+    const planeEl = $('landing-plane');
     const skyH    = skyEl.offsetHeight || 300;
     const groundH = 65;
     const planeH  = planeEl.offsetHeight || 50;
     _lg.RUNWAY_Y  = ((skyH - groundH - planeH + 4) / skyH) * 100;
 
-    // Reset plane position
     planeEl.style.cssText = `left:${_lg.x}%;top:${_lg.y}%`;
     _lg.raf = requestAnimationFrame(_landingLoop);
   });
@@ -600,7 +950,7 @@ function startLandingGame(plane, onComplete) {
 
 function _landingLoop() {
   if (!_lg) return;
-  const planeEl = document.getElementById('landing-plane');
+  const planeEl = $('landing-plane');
 
   if (_lg.phase === 'flying') {
     _lg.x += _lg.vx;
@@ -627,25 +977,25 @@ function _attemptLanding() {
   const inZone = _lg.x >= _lg.ZONE_START && _lg.x <= _lg.ZONE_END;
 
   if (inZone || _lg.attempts >= 2) {
-    // Snap to center of zone on auto-assist
     if (!inZone) {
       _lg.x = (_lg.ZONE_START + _lg.ZONE_END) / 2;
-      document.getElementById('landing-plane').style.left = _lg.x + '%';
+      $('landing-plane').style.left = _lg.x + '%';
     }
     _lg.phase = 'descending';
-    document.getElementById('btn-land').disabled = true;
-    document.getElementById('landing-msg').textContent = '...יוֹרְדִים לִנְחִיתָה 🛬';
+    $('btn-land').disabled = true;
+    $('landing-msg').textContent = '...יוֹרְדִים לִנְחִיתָה 🛬';
+    SFX.whoosh();
 
   } else {
     _lg.attempts++;
+    SFX.retry();
     const msgs = [
       'כִּמְעַט! לְחַץ כַּאֲשֶׁר הַמָּטוֹס מֵעַל הַמַּסְלוּל הַיָּרֹק!',
       'עוֹד פַּעַם — הַפַּעַם תַּצְלִיחַ!',
     ];
-    document.getElementById('landing-msg').textContent = msgs[_lg.attempts - 1];
+    $('landing-msg').textContent = msgs[_lg.attempts - 1];
 
-    // Wobble the plane
-    const p = document.getElementById('landing-plane');
+    const p = $('landing-plane');
     p.classList.remove('lg-wobble');
     void p.offsetWidth; // reflow
     p.classList.add('lg-wobble');
@@ -657,26 +1007,23 @@ function _onLandingSuccess() {
   cancelAnimationFrame(_lg.raf);
   _lg.raf = null;
 
-  const planeEl = document.getElementById('landing-plane');
-  const isGold  = _lg.plane.rarity === 'gold';
+  const planeEl = $('landing-plane');
+  const isRare  = !!_lg.rar.cls;
 
-  // Landing dust / bounce
   planeEl.classList.add('lg-landed');
+  SFX.land();
 
-  // Show success message
-  document.getElementById('landing-msg').textContent =
-    isGold
-      ? '✨ נְחִיתַת זָהָב מוּשְׁלֶמֶת! אַתָּה מַדְהִים! ✨'
-      : '🎉 נְחִיתָה מוּשְׁלֶמֶת! כׇּל הַכָּבוֹד!';
+  $('landing-msg').textContent = isRare
+    ? '✨ נְחִיתַת זָהָב מוּשְׁלֶמֶת! אַתָּה מַדְהִים! ✨'
+    : '🎉 נְחִיתָה מוּשְׁלֶמֶת! כׇּל הַכָּבוֹד!';
 
-  // TTS celebration
-  SPEECH.speak(isGold ? MESSAGES.landing.gold : MESSAGES.landing.normal);
+  SPEECH.speak(isRare ? MESSAGES.landing.gold : MESSAGES.landing.normal);
+  if (isRare) setTimeout(() => SFX.rare(), 400);
 
-  // Celebration confetti (reuse existing celebrate overlay briefly)
-  const overlay = document.getElementById('celebrate-overlay');
-  const confettiEl = document.getElementById('celebrate-confetti');
-  document.getElementById('celebrate-name').textContent = _lg.plane.name;
-  document.querySelector('.celebrate-sub').textContent = isGold ? '✨ מָטוֹס זָהָב!' : 'מָטוֹס חָדָשׁ!';
+  const overlay = $('celebrate-overlay');
+  const confettiEl = $('celebrate-confetti');
+  $('celebrate-name').textContent = _lg.plane.name;
+  document.querySelector('.celebrate-sub').textContent = isRare ? _lg.rar.label : 'מָטוֹס חָדָשׁ!';
   confettiEl.innerHTML = '';
   const colors = ['#00ff41','#ffd700','#00bfff','#ff6b9d','#fff700','#cc44ff'];
   for (let i = 0; i < 28; i++) {
@@ -691,9 +1038,8 @@ function _onLandingSuccess() {
     confettiEl.innerHTML = '';
   }, 1800);
 
-  // Show "continue" button after short pause
   setTimeout(() => {
-    const btn = document.getElementById('btn-land');
+    const btn = $('btn-land');
     btn.disabled = false;
     btn.textContent = '✅ לְדוּחַ הַמִּשְׁמֶרֶת';
     btn.onclick = () => {
@@ -707,8 +1053,10 @@ function _onLandingSuccess() {
 }
 
 // ===== MAP SCREEN =====
+// Unlocked ports are tappable. Going back to an easy port is not a punishment
+// and should not need permission — it is how a child rebuilds confidence.
 function showMap() {
-  const container = document.getElementById('map-stages');
+  const container = $('map-stages');
   container.innerHTML = '';
 
   CURRICULUM.stages.forEach(stage => {
@@ -722,23 +1070,32 @@ function showMap() {
       (current   ? ' current'   : '') +
       (locked    ? ' locked'    : '');
 
-    const icon   = document.createElement('span');
+    const icon = document.createElement('span');
     icon.className = 'map-stage-icon';
     icon.textContent = completed ? '✅' : (current ? '👉' : '🔒');
 
-    const name   = document.createElement('span');
+    const name = document.createElement('span');
     name.className = 'map-stage-name';
     name.textContent = `נָמֵל ${stage.id}: ${stage.title}`;
 
     const status = document.createElement('span');
     status.className = 'map-stage-status';
-    status.textContent = completed ? 'הוּשְׁלַם' : (current ? 'פָּעִיל' : 'נָעוּל');
+    status.textContent = completed ? 'תַּרְגֵּל ▶' : (current ? 'פָּעִיל' : 'נָעוּל');
 
     row.append(icon, name, status);
+
+    if (!locked) {
+      row.classList.add('playable');
+      row.onclick = () => {
+        SFX.whoosh();
+        startShift(stage.id, stage.id !== saveData.currentStage);
+      };
+    }
     container.appendChild(row);
   });
 
-  document.getElementById('btn-map-back').onclick = () => {
+  $('btn-map-back').onclick = () => {
+    SFX.click();
     showScreen('screen-entry');
     initEntry();
   };
@@ -752,18 +1109,17 @@ function showMap() {
 
 function _stopSpeech() {
   SPEECH.stop();
-  document.getElementById('btn-speak').classList.remove('speaking');
+  $('btn-speak').classList.remove('speaking');
 }
 
 function speakQuestion() {
-  const btn = document.getElementById('btn-speak');
+  const btn = $('btn-speak');
   btn.classList.add('speaking');
   const done = () => btn.classList.remove('speaking');
 
-  SPEECH.speak(formatRadioText(currentQ.radioText, currentQ), {
-    onend: done,
-    onerror: done
-  });
+  // Repeat whatever is on the radio right now — mid-ladder that is the rung,
+  // not the original call.
+  SPEECH.speak($('radio-text').textContent, { onend: done, onerror: done });
 }
 
 // ===== INIT =====
@@ -771,21 +1127,31 @@ document.addEventListener('DOMContentLoaded', () => {
   initEntry();
   showScreen('screen-entry');
 
-  // Number pad
   document.querySelectorAll('.num-btn[data-n]').forEach(btn => {
     btn.addEventListener('click', () => handleNumPress(btn.dataset.n));
   });
 
-  document.getElementById('btn-submit').addEventListener('click', handleSubmit);
-  document.getElementById('btn-speak').addEventListener('click', speakQuestion);
+  $('btn-submit').addEventListener('click', handleSubmit);
+  $('btn-speak').addEventListener('click', speakQuestion);
+  $('btn-bridge').addEventListener('click', () => openBridge(false));
 
-  document.getElementById('btn-show-album').addEventListener('click', () => {
+  $('btn-show-album').addEventListener('click', () => {
+    SFX.click();
     saveData = PROGRESS.load();
     showAlbum();
   });
 
-  document.getElementById('btn-show-map').addEventListener('click', () => {
+  $('btn-show-map').addEventListener('click', () => {
+    SFX.click();
     saveData = PROGRESS.load();
     showMap();
+  });
+
+  // A physical keyboard is faster than the pad for anyone helping out.
+  document.addEventListener('keydown', e => {
+    if ($('screen-game').classList.contains('hidden')) return;
+    if (e.key >= '0' && e.key <= '9') handleNumPress(e.key);
+    else if (e.key === 'Enter' && !$('btn-submit').disabled) handleSubmit();
+    else if (e.key === 'Backspace' || e.key === 'Escape') handleNumPress('clear');
   });
 });

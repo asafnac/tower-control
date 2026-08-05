@@ -55,7 +55,10 @@
           <button id="btn-show-map"   class="btn-secondary">מַפַּת נְמָלִים 🗺️</button>
         </div>
       </div>
+      <div id="entry-mission" class="mission-card hidden"></div>
+      <div id="entry-stats" class="entry-stats hidden"></div>
       <div id="entry-rank" class="rank-badge hidden"></div>
+      <button id="btn-sound" class="btn-sound" title="צְלִילִים">🔊</button>
     </div>
   </div>
 
@@ -64,6 +67,7 @@
     <div class="game-header">
       <span id="hdr-rank" class="rank-small"></span>
       <span id="hdr-name" class="player-name-small"></span>
+      <span id="hdr-combo" class="combo-badge hidden"></span>
       <span id="hdr-shift" class="shift-label"></span>
       <span id="hdr-progress" class="shift-progress"></span>
     </div>
@@ -79,13 +83,11 @@
         <div id="altitude-meter" class="altitude-meter hidden">
           <div class="alt-scale">
             <div id="alt-fill" class="alt-fill"></div>
-            <div class="alt-safety-line">
-              <span class="alt-safety-label">רָמַת בִּטָּחוֹן — 10</span>
-            </div>
+            <div id="alt-ticks" class="alt-ticks"></div>
           </div>
           <div id="alt-number" class="alt-number">0</div>
           <div id="alt-decompose" class="alt-decompose hidden">
-            <span class="decompose-ten">10</span>
+            <span id="decompose-ten" class="decompose-ten">10</span>
             <span class="decompose-plus">+</span>
             <span id="decompose-units" class="decompose-units">0</span>
           </div>
@@ -99,9 +101,16 @@
         <button id="btn-speak" class="btn-speak" title="הַקְרֵא אֶת הַשְּׁאֵלָה">🔊</button>
       </div>
 
+      <!-- Safety-station ladder (ten-crossing questions) -->
+      <button id="btn-bridge" class="btn-bridge hidden">🔟 פָּרֵק לִי דֶּרֶךְ תַּחֲנַת הָעֲשָׂרָה</button>
+      <div id="bridge-panel" class="bridge-panel hidden">
+        <div id="bridge-rungs" class="bridge-rungs"></div>
+      </div>
+
       <!-- Hint area -->
       <div id="hint-area" class="hint-area hidden">
         <div id="hint-dots" class="hint-dots"></div>
+        <p id="hint-text" class="hint-text"></p>
       </div>
     </div>
 
@@ -133,6 +142,7 @@
       <h2 class="report-title">דּוּחַ מִשְׁמֶרֶת</h2>
       <div id="report-planes" class="report-planes"></div>
       <p id="report-msg" class="report-msg"></p>
+      <div id="report-stats" class="report-stats"></div>
       <div id="report-new-plane" class="new-plane-badge hidden"></div>
       <div id="report-rank-up" class="rank-up hidden"></div>
       <button id="btn-continue" class="btn-primary">הַמְשֵׁךְ</button>
@@ -143,6 +153,7 @@
   <div id="screen-album" class="screen hidden">
     <div class="screen-content">
       <h2>אַלְבּוּם הַמְּטוֹסִים שֶׁלִּי</h2>
+      <p id="album-count" class="album-count"></p>
       <div id="album-grid" class="album-grid"></div>
       <button id="btn-album-back" class="btn-secondary">חֲזוֹר</button>
     </div>
@@ -181,6 +192,7 @@
 
   <script src="js/curriculum.js"></script>
   <script src="js/speech.js"></script>
+  <script src="js/sfx.js"></script>
   <script src="js/progress.js"></script>
   <script src="js/game.js"></script>
 </body>

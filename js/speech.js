@@ -49,13 +49,23 @@ const SPEECH = {
 
   _current: null,
 
-  /** Stop whatever is currently playing. Safe to call at any time. */
+  /**
+   * Stop whatever is currently playing. Safe to call at any time.
+   *
+   * The handlers come off BEFORE the src is cleared. Clearing it fires a real
+   * 'error' event on that element, and while the old handler was still attached
+   * every interrupted line logged itself as a missing clip and fired the
+   * caller's onerror — so the console read like the audio pipeline was broken
+   * every time a question moved on.
+   */
   stop() {
-    if (this._current) {
-      this._current.pause();
-      this._current.src = '';
-      this._current = null;
-    }
+    const audio = this._current;
+    if (!audio) return;
+    this._current = null;
+    audio.onended = null;
+    audio.onerror = null;
+    audio.pause();
+    audio.src = '';
   },
 
   /**
