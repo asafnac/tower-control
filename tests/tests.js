@@ -82,6 +82,52 @@ function runTests() {
   PROGRESS.touchDay(data, day(2025, 12, 31));
   assert(PROGRESS.touchDay(data, day(2026, 1, 1)) === 2, 'Streak survives a year boundary');
 
+  // ===== MERGING TWO DEVICES =====
+  // A tablet and a laptop have to be one child. The rule everywhere is "take
+  // the side that represents more play" — never "the newer file wins", because
+  // the newer file may be from the device he opened once by mistake.
+  const laptop = Object.assign(PROGRESS._default(), {
+    playerName: 'יונתן', currentStage: 8, stagesCompleted: [1, 2, 3],
+    planesCollected: [1, 5, 9], shiftsCompleted: 20, flightHours: 900,
+    bestCombo: 7, streakDays: 4, lastPlayedDay: '2026-08-04', bridgeTaught: true,
+    log: [{ t: 1000, s: 8, q: 'bridge-sub', a: 16, b: 9, r: 7, n: 0, l: 0, v: 0, d: 5000 },
+          { t: 2000, s: 8, q: 'bridge-sub', a: 15, b: 8, r: 7, n: 1, l: 1, v: 0, d: 9000 }],
+  });
+  const tablet = Object.assign(PROGRESS._default(), {
+    playerName: 'יונתן', currentStage: 5, stagesCompleted: [1, 2, 4],
+    planesCollected: [5, 12], shiftsCompleted: 6, flightHours: 300,
+    bestCombo: 3, streakDays: 2, lastPlayedDay: '2026-08-02', bridgeTaught: false,
+    log: [{ t: 2000, s: 8, q: 'bridge-sub', a: 15, b: 8, r: 7, n: 1, l: 1, v: 0, d: 9000 },
+          { t: 3000, s: 9, q: 'addition', a: 40, b: 20, r: 60, n: 0, l: 0, v: 0, d: 4000 }],
+  });
+
+  const m = PROGRESS.merge(laptop, tablet);
+  assert(m.currentStage === 8, 'Merge keeps the furthest port, not the last written');
+  assert(m.stagesCompleted.join() === '1,2,3,4', 'Merge unions completed ports');
+  assert(m.planesCollected.join() === '1,5,9,12', 'Merge unions the album with no duplicates');
+  assert(m.flightHours === 900 && m.bestCombo === 7, 'Merge keeps the better totals');
+  assert(m.lastPlayedDay === '2026-08-04', 'Merge keeps the later play date');
+  assert(m.bridgeTaught === true, 'The ladder does not re-introduce itself after a merge');
+  assert(m.log.length === 3, `Merge unions the log and drops the shared row (got ${m.log.length})`);
+  assert(m.log.every((r, i, arr) => i === 0 || arr[i - 1].t <= r.t), 'Merged log stays in time order');
+
+  // Direction must not matter, or a parent has to know which file to open first.
+  const rev = PROGRESS.merge(tablet, laptop);
+  assert(rev.currentStage === 8 && rev.log.length === 3 && rev.flightHours === 900,
+    'Merging in the other direction gives the same result');
+
+  // Importing the same backup twice must change nothing.
+  const twice = PROGRESS.merge(m, tablet);
+  assert(twice.log.length === 3 && twice.currentStage === 8, 'Re-importing a backup is a no-op');
+
+  // A first-time device with an empty save must take everything.
+  const fresh = PROGRESS.merge(PROGRESS._default(), laptop);
+  assert(fresh.currentStage === 8 && fresh.playerName === 'יונתן' && fresh.log.length === 2,
+    'A fresh device adopts the whole backup');
+
+  // Junk must not wipe a save.
+  assert(PROGRESS.merge(laptop, null).currentStage === 8, 'Merging null leaves the save alone');
+
   // ===== DAILY MISSION =====
   // Same mission all day, and one that some shift can actually satisfy.
   const m1 = PROGRESS.missionForDay('2026-03-10');

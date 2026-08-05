@@ -1244,7 +1244,7 @@ const SKILL_STATUS = {
   unseen:          { label: 'עוֹד לֹא הִגִּיעַ',   cls: 'thin'   },
 };
 
-function showParents() {
+function showParents(notice) {
   saveData = PROGRESS.load();
   const rep = ANALYTICS.analyse(saveData.log);
 
@@ -1288,7 +1288,12 @@ function showParents() {
          `<span class="phard-item">${f.fact}<em>${f.missPct}%</em></span>`).join('')}</div>`
     : '';
 
+  // A notice survives the re-render that follows an import — otherwise the
+  // confirmation the parent needs to read vanishes the moment it appears.
+  $('parents-import-msg').textContent = notice || '';
   $('btn-parents-export').onclick = () => exportReport(rep);
+  $('btn-parents-import').onclick = () => $('parents-file').click();
+  $('parents-file').onchange = e => importSave(e.target.files[0]);
   $('btn-parents-copy').onclick   = () => copyReport(rep);
   $('btn-parents-back').onclick   = () => { showScreen('screen-entry'); initEntry(); };
 
@@ -1304,6 +1309,57 @@ function exportReport() {
   a.download = `tower-control-${PROGRESS.today()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/**
+ * Restore — or fold in another device's play.
+ *
+ * Always a merge, never an overwrite. A parent moving a save between a laptop
+ * and a tablet must not have to work out which file is "the good one": both
+ * are, and the union of them is the child's real history.
+ */
+function importSave(file) {
+  if (!file) return;
+  const msg = t => { $('parents-import-msg').textContent = t; };
+  const reader = new FileReader();
+
+  reader.onerror = () => msg('לֹא הִצְלַחְתִּי לִקְרֹא אֶת הַקֹּבֶץ.');
+  reader.onload = () => {
+    let payload;
+    try {
+      payload = JSON.parse(reader.result);
+    } catch (e) {
+      msg('הַקֹּבֶץ אֵינוֹ קֹבֶץ גִּבּוּי תָּקִין.');
+      return;
+    }
+
+    const incoming = payload.save || (Array.isArray(payload.log) ? payload : null);
+    if (!incoming || typeof incoming !== 'object') {
+      msg('הַקֹּבֶץ אֵינוֹ קֹבֶץ גִּבּוּי שֶׁל הַמִּשְׂחָק.');
+      return;
+    }
+
+    // Two different children's saves must never be silently welded together.
+    const local = PROGRESS.load();
+    if (local.playerName && incoming.playerName && local.playerName !== incoming.playerName) {
+      const ok = confirm(`הַגִּבּוּי שַׁיָּךְ לְ"${incoming.playerName}" וְהַשְּׁמִירָה כָּאן לְ"${local.playerName}". לְאַחֵד בְּכׇל זֹאת?`);
+      if (!ok) { msg('הַשִּׁחְזוּר בֻּטַּל.'); return; }
+    }
+
+    const before = (local.log || []).length;
+    const merged = PROGRESS.merge(local, incoming);
+    PROGRESS.save(merged);
+    saveData = merged;
+
+    const added = (merged.log || []).length - before;
+    const notice = `אֻחַד בְּהַצְלָחָה — ${added} תַּרְגִּילִים חֲדָשִׁים, נָמֵל ${merged.currentStage}, ` +
+                   `${merged.planesCollected.length} מְטוֹסִים.`;
+    msg(notice);
+    SFX.rare();
+    setTimeout(() => showParents(notice), 1200);
+  };
+
+  reader.readAsText(file);
 }
 
 /** The same report as plain text, for pasting into a message. */

@@ -150,6 +150,57 @@ const PROGRESS = {
     return data;
   },
 
+  /**
+   * Fold another device's save into this one, losing nothing from either.
+   *
+   * This is what makes a tablet and a laptop one child rather than two. Every
+   * field takes the side that represents more play — never "the newer file
+   * wins", because the newer file may be the one from the device he used once.
+   *
+   * Answer rows are unioned on their timestamp: they are millisecond-stamped at
+   * the moment a question ends, so a collision between two devices is not a
+   * thing that happens, and re-importing the same file twice is a no-op.
+   */
+  merge(local, incoming) {
+    if (!incoming || typeof incoming !== 'object') return local;
+    const out = Object.assign(this._default(), local);
+    const union = (a, b) => [...new Set([...(a || []), ...(b || [])])].sort((x, y) => x - y);
+    const maxOf = (a, b) => Math.max(Number(a) || 0, Number(b) || 0);
+
+    out.playerName        = local.playerName || incoming.playerName || '';
+    out.currentStage      = Math.min(maxOf(local.currentStage, incoming.currentStage) || 1,
+                                     this.maxStage());
+    out.stagesCompleted   = union(local.stagesCompleted, incoming.stagesCompleted);
+    out.planesCollected   = union(local.planesCollected, incoming.planesCollected);
+    out.shiftsCompleted   = maxOf(local.shiftsCompleted, incoming.shiftsCompleted);
+    out.flightHours       = maxOf(local.flightHours, incoming.flightHours);
+    out.bestCombo         = maxOf(local.bestCombo, incoming.bestCombo);
+    out.streakDays        = maxOf(local.streakDays, incoming.streakDays);
+    out.currentStageShifts = maxOf(local.currentStageShifts, incoming.currentStageShifts);
+    out.bridgeTaught      = !!(local.bridgeTaught || incoming.bridgeTaught);
+    // Settings belong to the device you are holding.
+    out.soundOn           = local.soundOn !== false;
+    out.lastPlayedDay     = [local.lastPlayedDay, incoming.lastPlayedDay]
+                              .filter(Boolean).sort().pop() || '';
+    // A mission counts as done if either device finished it today.
+    const today = this.today();
+    const doneToday = m => m && m.day === today && m.done;
+    out.mission = doneToday(local.mission) ? local.mission
+                : (doneToday(incoming.mission) ? incoming.mission : local.mission || null);
+
+    const seen = new Set();
+    out.log = [...(local.log || []), ...(incoming.log || [])]
+      .filter(r => r && typeof r.t === 'number')
+      .filter(r => { const k = r.t + ':' + r.a + ':' + r.b; if (seen.has(k)) return false;
+                     seen.add(k); return true; })
+      .sort((x, y) => x.t - y.t);
+    const cap = (typeof ANALYTICS !== 'undefined') ? ANALYTICS.MAX_ROWS : 1500;
+    if (out.log.length > cap) out.log = out.log.slice(-cap);
+
+    out.rank = this.getRankForStage(out.currentStage).name;
+    return out;
+  },
+
   addFlightHours(data, n) {
     data.flightHours = (data.flightHours || 0) + n;
     return data;

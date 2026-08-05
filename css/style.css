@@ -1876,8 +1876,11 @@ body {
 
 .phard-item em { color: #ff9d9d; font-style: normal; font-size: 0.72rem; margin-inline-start: 6px; }
 
-.parents-actions { display: flex; gap: 8px; width: 100%; }
-.parents-actions .btn-secondary { flex: 1; font-size: 0.85rem; }
+.parents-actions { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+.parents-actions .btn-secondary { flex: 1; min-width: 150px; font-size: 0.85rem; }
+
+.parents-import-msg { color: var(--color-correct); font-size: 0.85rem; text-align: center; }
+.parents-import-msg:empty { display: none; }
 
 .parents-note { color: var(--color-text-dim); font-size: 0.75rem; text-align: center; }
 

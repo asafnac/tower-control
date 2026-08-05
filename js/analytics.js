@@ -344,12 +344,19 @@ const ANALYTICS = {
     return out.sort((a, b) => a.priority - b.priority).slice(0, 6);
   },
 
-  /** The exact payload the export button writes to a file. */
+  /**
+   * The exact payload the export button writes to a file.
+   *
+   * `save` is the complete save, so this file is both a report to hand to
+   * someone and a working backup to restore from — the two things a parent
+   * would otherwise need two buttons and two explanations for.
+   */
   exportPayload(save) {
     return {
-      exportedAt: new Date().toISOString(),
       game: 'tower-control',
-      version: 2,
+      version: 3,
+      exportedAt: new Date().toISOString(),
+      // Readable summary, for a human or a script that only wants the headline.
       player: save.playerName || '',
       currentStage: save.currentStage,
       stagesCompleted: save.stagesCompleted,
@@ -358,6 +365,8 @@ const ANALYTICS = {
       streakDays: save.streakDays,
       planesCollected: (save.planesCollected || []).length,
       log: save.log || [],
+      // The restorable part.
+      save,
     };
   },
 };
