@@ -2,12 +2,21 @@ name = "tower-sync"
 main = "worker.js"
 compatibility_date = "2026-01-01"
 
-# Create the namespace once, then paste its id here:
-#   wrangler kv namespace create TOWER
+# Give us a https://tower-sync.<subdomain>.workers.dev address. That URL is what
+# goes into the game's parent screen; no custom domain is needed.
+workers_dev = true
+
+# The KV namespace that holds the saves.
+#
+# This id is not a secret — it names a namespace, it does not grant access to
+# one. Reaching it still requires the account. Committing it is the normal thing
+# to do, and it has to be committed here: this Worker is built from the repo, so
+# a binding added by hand in the dashboard would be overwritten by the next
+# build. Declared in the file, it survives every deploy.
 [[kv_namespaces]]
 binding = "TOWER"
-id = "PASTE_THE_ID_WRANGLER_PRINTS_HERE"
+id = "8e500af018654257a1f3f13209197791"
 
-# The saves are small and the log is already capped client-side, so no
-# expiration is set: a child who does not play for six months should still find
-# his album where he left it.
+# No expiration is set. The saves are small and the log is already capped
+# client-side, so a child who does not play for six months should still find his
+# album exactly where he left it.
