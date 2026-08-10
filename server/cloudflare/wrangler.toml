@@ -1,4 +1,7 @@
-name = "tower-sync"
+# Must match the Worker that Cloudflare's build system deploys to, which it
+# names after the repository. A mismatch only warns today, but it is the kind of
+# thing that quietly creates a second Worker on some future deploy.
+name = "tower-control"
 main = "worker.js"
 compatibility_date = "2026-01-01"
 
