@@ -1,0 +1,13 @@
+name = "tower-sync"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Create the namespace once, then paste its id here:
+#   wrangler kv namespace create TOWER
+[[kv_namespaces]]
+binding = "TOWER"
+id = "PASTE_THE_ID_WRANGLER_PRINTS_HERE"
+
+# The saves are small and the log is already capped client-side, so no
+# expiration is set: a child who does not play for six months should still find
+# his album where he left it.

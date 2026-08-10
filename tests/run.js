@@ -116,6 +116,31 @@ if (!fs.existsSync(bundlePath)) {
 console.log(`three: ${used.length} classes used, ${bundleMissing.length} unresolved`);
 bundleMissing.forEach(m => console.error('  ' + m));
 
-const ok = result.failed === 0 && missing.length === 0 && bundleMissing.length === 0;
+// ===== THE OFFLINE SHELL MUST LIST EVERY SCRIPT THE PAGE LOADS =====
+// A script added to index.html but not to sw.js loads fine online and is simply
+// absent offline — the game would half-start on a plane and nobody would know
+// why. The reverse (a listed file that no longer exists) silently degrades the
+// install.
+const swSrc   = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+const htmlSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const shell = [...swSrc.matchAll(/'\.\/([^']+)'/g)].map(m => m[1]);
+const pageScripts = [...htmlSrc.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
+const pageCss     = [...htmlSrc.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m => m[1]);
+
+const shellProblems = [];
+shell.forEach(rel => {
+  if (rel && !fs.existsSync(path.join(ROOT, rel))) {
+    shellProblems.push(`sw.js precaches ${rel}, which does not exist`);
+  }
+});
+[...pageScripts, ...pageCss].forEach(rel => {
+  if (!shell.includes(rel)) shellProblems.push(`${rel} is loaded by index.html but not precached by sw.js`);
+});
+
+console.log(`offline: ${shell.length} shell files, ${shellProblems.length} problems`);
+shellProblems.forEach(m => console.error('  ' + m));
+
+const ok = result.failed === 0 && missing.length === 0 && bundleMissing.length === 0 &&
+           shellProblems.length === 0;
 console.log(ok ? '\n✅ all good' : '\n❌ failures above');
 process.exit(ok ? 0 : 1);

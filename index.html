@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>מִגְדַּל הַפִּיקּוּחַ</title>
   <link rel="stylesheet" href="css/style.css">
+  <!-- Installable to a home screen. On an iPad that is not only convenience:
+       an installed web app is exempt from Safari's eviction of storage for
+       sites left unvisited for a week, which is what would otherwise wipe a
+       save over a school holiday. -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="מגדל הפיקוח">
+  <meta name="theme-color" content="#0a1628">
 </head>
 <body>
 
@@ -192,6 +202,16 @@
 
       <div id="parents-hardest" class="parents-hardest"></div>
 
+      <h3 class="parents-h3">מִשְׂחָק בְּלִי אִינְטֶרְנֶט</h3>
+      <div class="sync-box">
+        <p id="offline-state" class="sync-hint"></p>
+        <div class="sync-row">
+          <button id="btn-offline-download" class="btn-secondary">הוֹרֵד הַכֹּל לְלֹא־מְקֻוָּן</button>
+          <button id="btn-offline-reset" class="btn-secondary sync-mini">אַפֵּס מַטְמוֹן</button>
+        </div>
+        <div id="offline-bar" class="offline-bar hidden"><div id="offline-fill" class="offline-fill"></div></div>
+      </div>
+
       <h3 class="parents-h3">סִנְכְּרוּן בֵּין מַכְשִׁירִים</h3>
       <div class="sync-box">
         <label class="sync-label" for="sync-url">כְּתֹבֶת הַשֶּׁרֶת</label>
@@ -254,6 +274,7 @@
   <script src="js/sfx.js"></script>
   <script src="js/analytics.js"></script>
   <script src="js/sync.js"></script>
+  <script src="js/offline.js"></script>
   <script src="js/scene3d.js"></script>
   <script src="js/progress.js"></script>
   <script src="js/game.js"></script>

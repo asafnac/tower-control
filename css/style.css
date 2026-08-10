@@ -1924,6 +1924,24 @@ body {
 .sync-status.good { color: var(--color-correct); }
 .sync-status.bad  { color: #ff9d9d; }
 
+/* ===== OFFLINE DOWNLOAD BAR ===== */
+.offline-bar {
+  background: rgba(255,255,255,0.07);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.offline-bar.hidden { display: none; }
+
+.offline-fill {
+  background: var(--color-correct);
+  height: 100%;
+  width: 0;
+  transition: width 0.25s ease;
+}
+
 /* ===== 3D LAYER ===== */
 .scene3d-host {
   position: fixed;

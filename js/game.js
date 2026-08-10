@@ -1306,6 +1306,7 @@ function showParents(notice) {
   // confirmation the parent needs to read vanishes the moment it appears.
   $('parents-import-msg').textContent = notice || '';
   renderSyncBox();
+  renderOfflineBox();
   $('btn-parents-export').onclick = () => exportReport(rep);
   $('btn-parents-import').onclick = () => $('parents-file').click();
   $('parents-file').onchange = e => importSave(e.target.files[0]);
@@ -1324,6 +1325,57 @@ function exportReport() {
   a.download = `tower-control-${PROGRESS.today()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+// ===== OFFLINE =====
+async function renderOfflineBox() {
+  const state = $('offline-state');
+  const btnDl = $('btn-offline-download');
+  const bar   = $('offline-bar');
+  const fill  = $('offline-fill');
+
+  if (!OFFLINE.possible()) {
+    // Opened from a disk: already offline in the only sense that matters.
+    state.textContent = 'הַמִּשְׂחָק רָץ מֵהַקֹּבֶץ הַמְּקוֹמִי — הוּא כְּבָר עוֹבֵד בְּלִי אִינְטֶרְנֶט.';
+    btnDl.disabled = true;
+    $('btn-offline-reset').disabled = true;
+    return;
+  }
+
+  const total  = OFFLINE.audioUrls().length;
+  const cached = await OFFLINE.cachedCount();
+
+  const describe = () => {
+    if (cached === null) return 'מִתְקִין... נַסֵּה שׁוּב בְּעוֹד רֶגַע.';
+    if (cached >= total) return `כׇּל ${total} קִטְעֵי הַהַקְרָאָה שְׁמוּרִים — הַמִּשְׂחָק עוֹבֵד מָלֵא גַּם בְּלִי רֶשֶׁת.`;
+    if (cached === 0)    return `הַמִּשְׂחָק עַצְמוֹ כְּבָר עוֹבֵד בְּלִי רֶשֶׁת. הַהַקְרָאָה בְּקוֹל תִּשָּׁמֵר תּוֹךְ כְּדֵי מִשְׂחָק, אוֹ בְּבַת אַחַת כָּאן (16 מֶגָה).`;
+    return `${cached} מִתּוֹךְ ${total} קִטְעֵי הַקְרָאָה שְׁמוּרִים.`;
+  };
+  state.textContent = describe();
+
+  btnDl.onclick = async () => {
+    btnDl.disabled = true;
+    bar.classList.remove('hidden');
+    const res = await OFFLINE.downloadAll((done, all) => {
+      fill.style.width = Math.round((done / all) * 100) + '%';
+      state.textContent = `מוֹרִיד ${done} מִתּוֹךְ ${all}...`;
+    });
+    btnDl.disabled = false;
+    if (res.ok) {
+      SFX.rare();
+      state.textContent = res.failed
+        ? `הֻשְׁלַם — ${res.total - res.failed} מִתּוֹךְ ${res.total}. נַסֵּה שׁוּב לְהַשְׁלִים אֶת הַשְּׁאָר.`
+        : `הֻשְׁלַם! כׇּל ${res.total} הַקִּטְעִים שְׁמוּרִים בַּמַּכְשִׁיר.`;
+    } else {
+      state.textContent = 'הַהוֹרָדָה לֹא הִתְחִילָה — רַעֲנֵן אֶת הַדַּף וְנַסֵּה שׁוּב.';
+    }
+  };
+
+  $('btn-offline-reset').onclick = () => {
+    if (confirm('לְנַקּוֹת אֶת הַמַּטְמוֹן וְלִטְעֹן מֵחָדָשׁ? הַהִתְקַדְּמוּת וְהַמְּטוֹסִים לֹא יִפָּגְעוּ.')) {
+      OFFLINE.reset();
+    }
+  };
 }
 
 // ===== SYNC =====
@@ -1555,6 +1607,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // the flat landing game carry on exactly as before.
   use3D = typeof SCENE3D !== 'undefined' && SCENE3D.supported();
   document.body.classList.toggle('has-3d', use3D);
+
+  // Offline support installs itself quietly and is never waited on.
+  OFFLINE.register();
 
   initEntry();
   wireParentsButton();
