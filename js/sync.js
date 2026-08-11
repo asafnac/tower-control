@@ -100,6 +100,35 @@ const SYNC = {
     return body.save || null;
   },
 
+  /**
+   * What the server currently holds, without writing anything.
+   *
+   * The whole system is otherwise invisible: a parent looking at a device with
+   * no history cannot tell whether the server is empty too, or whether he is
+   * simply standing at the wrong machine. This answers that in one line.
+   */
+  async peek() {
+    if (!this.enabled()) return { ok: false, reason: 'not-configured' };
+    try {
+      const cfg = this.config();
+      const body = await this._fetch(this._endpoint(cfg), { method: 'GET' });
+      return { ok: true, save: body.save || null, updatedAt: body.updatedAt || null };
+    } catch (err) {
+      return { ok: false, reason: err.name === 'AbortError' ? 'timeout' : (err.message || 'failed') };
+    }
+  },
+
+  /** A one-line description of a save, for comparing two sides at a glance. */
+  describe(save) {
+    if (!save) return null;
+    const parts = [];
+    if (save.playerName) parts.push(save.playerName);
+    parts.push('נָמֵל ' + (save.currentStage || 1));
+    parts.push((save.planesCollected || []).length + ' מְטוֹסִים');
+    parts.push((save.log || []).length + ' תַּרְגִּילִים');
+    return parts.join(' · ');
+  },
+
   async push(save) {
     const cfg = this.config();
     return this._fetch(this._endpoint(cfg), {

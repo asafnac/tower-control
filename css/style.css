@@ -1924,6 +1924,31 @@ body {
 .sync-status.good { color: var(--color-correct); }
 .sync-status.bad  { color: #ff9d9d; }
 
+/* ===== SYNC: WHAT IS WHERE ===== */
+.sync-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--color-panel-border);
+  margin-top: 4px;
+  padding-top: 8px;
+}
+
+.sync-compare.hidden { display: none; }
+
+.sync-side {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.8rem;
+}
+
+.sync-side b { color: var(--color-text-dim); font-weight: 700; min-width: 62px; }
+.sync-side span { color: var(--color-text); }
+.sync-side.empty span { color: #ff9d9d; }
+/* The line that answers "is it gone?" — it must not read as more small print. */
+.sync-side.note span { color: var(--color-correct); font-weight: 700; }
+
 /* ===== OFFLINE DOWNLOAD BAR ===== */
 .offline-bar {
   background: rgba(255,255,255,0.07);

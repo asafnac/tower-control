@@ -45,6 +45,11 @@ sandbox.crypto = { getRandomValues: a => { require('crypto').randomFillSync(a); 
 // URL is a browser global that a vm context does not get for free, and sync.js
 // parses server addresses with it.
 sandbox.URL = URL;
+// peek()/pull() run through _fetch, which arms a timeout and an abort. The
+// suite swaps in its own fetch; these three are the plumbing around it.
+sandbox.setTimeout = setTimeout;
+sandbox.clearTimeout = clearTimeout;
+sandbox.AbortController = AbortController;
 sandbox.window = sandbox;
 vm.createContext(sandbox);
 
@@ -140,7 +145,15 @@ shell.forEach(rel => {
 console.log(`offline: ${shell.length} shell files, ${shellProblems.length} problems`);
 shellProblems.forEach(m => console.error('  ' + m));
 
-const ok = result.failed === 0 && missing.length === 0 && bundleMissing.length === 0 &&
-           shellProblems.length === 0;
-console.log(ok ? '\n✅ all good' : '\n❌ failures above');
-process.exit(ok ? 0 : 1);
+// ===== THE CHECKS THAT HAVE TO WAIT =====
+// peek() is a fetch, so its assertions land a microtask later than runTests()
+// reports. Run them last and fold them into the exit code — an async test whose
+// result nobody reads is not a test.
+vm.runInContext('runAsyncTests()', sandbox).then(async2 => {
+  console.log(`async: ${async2.passed} checks, ${async2.failed} failures`);
+
+  const ok = result.failed === 0 && async2.failed === 0 && missing.length === 0 &&
+             bundleMissing.length === 0 && shellProblems.length === 0;
+  console.log(ok ? '\n✅ all good' : '\n❌ failures above');
+  process.exit(ok ? 0 : 1);
+});

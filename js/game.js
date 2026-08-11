@@ -1435,6 +1435,8 @@ function renderSyncBox() {
     const problem = commitFields();
     if (problem) { say(problem, 'bad'); return; }
     say('נִשְׁמַר. לְחַץ "סַנְכְּרֵן עַכְשָׁו".', 'good');
+    // The address only just became usable — until now there was nothing to look at.
+    renderSyncCompare();
   };
 
   $('btn-sync-now').onclick = async () => {
@@ -1464,7 +1466,76 @@ function renderSyncBox() {
     }
 
     say(explainSyncFailure(res.reason), 'bad');
+    renderSyncCompare();
   };
+
+  renderSyncCompare();
+}
+
+/**
+ * What is on this device, and what is on the server — side by side.
+ *
+ * The whole sync system is otherwise invisible, and that is what frightened a
+ * parent into thinking a year of play had been wiped: he opened the game on a
+ * machine the child had never used, saw an empty tower, and had no way to tell
+ * "this device is empty" from "everything is gone". Two lines answer it.
+ *
+ * Read-only — a GET, never a write. Looking at the state must not change it.
+ */
+let syncCompareToken = 0;
+async function renderSyncCompare() {
+  const box = $('sync-compare');
+  if (!box) return;
+
+  if (!SYNC.enabled()) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+
+  const line = (label, text, kind) =>
+    `<div class="sync-side${kind ? ' ' + kind : ''}"><b>${label}</b><span>${text}</span></div>`;
+  const note = text => line('', text, 'note');
+
+  const local = PROGRESS.load();
+  const here  = SYNC.describe(local);
+  const hereEmpty = !(local.log || []).length && !(local.planesCollected || []).length;
+
+  const show = serverLines => {
+    box.classList.remove('hidden');
+    box.innerHTML = line('כָּאן:', here, hereEmpty ? 'empty' : '') + serverLines;
+  };
+
+  const me = ++syncCompareToken;
+  show(line('בַּשֶּׁרֶת:', 'בּוֹדֵק...'));
+
+  const peek = await SYNC.peek();
+  if (me !== syncCompareToken) return; // a newer render already owns the box
+
+  if (!peek.ok) {
+    show(line('בַּשֶּׁרֶת:', 'לֹא הִצְלַחְתִּי לִבְדֹּק (' + peek.reason + ')', 'empty'));
+    return;
+  }
+
+  if (!peek.save) {
+    show(line('בַּשֶּׁרֶת:', 'רֵיק עֲדַיִן — שׁוּם מַכְשִׁיר לֹא סִנְכְרֵן לְכָאן.', 'empty') +
+         (hereEmpty ? '' : note('לְחִיצָה עַל "סַנְכְּרֵן עַכְשָׁו" תַּעֲלֶה לְשָׁם אֶת מָה שֶׁיֵּשׁ כָּאן.')));
+    return;
+  }
+
+  const when = peek.updatedAt ? new Date(peek.updatedAt).toLocaleString('he-IL') : '';
+  let lines = line('בַּשֶּׁרֶת:', SYNC.describe(peek.save));
+  if (when) lines += line('עֻדְכַּן:', when);
+
+  // The one case worth spelling out, and the reason this readout exists at all:
+  // the device in front of the parent looks blank, but the history is there.
+  // Nothing was lost — it is somewhere else, one press away. That sentence has
+  // to reach his eye, so the box is scrolled to rather than left below the fold.
+  const serverHas = (peek.save.log || []).length;
+  if (hereEmpty && serverHas) {
+    lines += note('הַהִתְקַדְּמוּת קַיֶּמֶת — לְחַץ "סַנְכְּרֵן עַכְשָׁו" וְהִיא תֵּרֵד לַמַּכְשִׁיר הַזֶּה.');
+  }
+  show(lines);
+
+  if (hereEmpty && serverHas) {
+    try { box.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { /* old browser */ }
+  }
 }
 
 /**

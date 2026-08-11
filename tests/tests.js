@@ -387,6 +387,20 @@ function runTests() {
     SYNC.setConfig({ url: '', code: '' });
     const off = SYNC.sync({ log: [] });
     assert(off && typeof off.then === 'function', 'sync() always returns a promise');
+
+    // describe() is what the parent actually reads when he is trying to work
+    // out whether a year of play is gone or whether he is at the wrong machine.
+    // It must never throw on a save that is missing fields.
+    assert(SYNC.describe(null) === null, 'describe(null) is null, not a crash');
+    const blank = SYNC.describe({});
+    assert(typeof blank === 'string' && /1/.test(blank), 'A bare object still describes as port 1');
+    const full = SYNC.describe({ playerName: 'יונתן', currentStage: 8,
+                                 planesCollected: ['a', 'b'], log: [1, 2, 3] });
+    assert(full.includes('יונתן'), 'The name appears');
+    assert(full.includes('8'), 'The port appears');
+    assert(full.includes('2 '), 'The plane count appears');
+    assert(full.includes('3 '), 'The exercise count appears');
+
   }
 
   // ===== ANALYTICS =====
@@ -514,4 +528,70 @@ function runTests() {
   return { passed, failed };
 }
 
-if (typeof module !== 'undefined' && module.exports) module.exports = { runTests };
+/**
+ * The checks that have to wait for a promise.
+ *
+ * Kept apart from runTests() because that one reports its tally the moment it
+ * returns, and an assertion that lands a microtask later would be counted by
+ * nobody. The runner awaits this and folds the result into the exit code.
+ */
+async function runAsyncTests() {
+  let passed = 0;
+  let failed = 0;
+  const assert = (condition, message) => {
+    if (condition) passed++;
+    else { failed++; console.error('FAIL:', message); }
+  };
+
+  if (typeof SYNC !== 'undefined') {
+    // peek() is read-only and total: every path returns an object, never throws
+    // and never writes. A diagnostic that can break the thing it is diagnosing
+    // would be worse than no diagnostic at all.
+    const realFetch = window.fetch;
+    const jsonRes = (obj, ok) => ({
+      ok: ok !== false,
+      status: ok === false ? 500 : 200,
+      text: () => Promise.resolve(JSON.stringify(obj)),
+    });
+    const answering = body => { window.fetch = () => Promise.resolve(body); };
+
+    SYNC.setConfig({ url: '', code: '', lastAt: 0, lastError: '' });
+    let r = await SYNC.peek();
+    assert(r.ok === false && r.reason === 'not-configured',
+           'peek() with no server says so instead of fetching');
+
+    SYNC.setConfig({ url: 'https://example.com/s.php', code: 'ABCDEFGHJKMNPQRS' });
+
+    answering(jsonRes({ save: null, updatedAt: null }));
+    r = await SYNC.peek();
+    assert(r.ok === true && r.save === null, 'An empty slot peeks as ok with no save');
+
+    answering(jsonRes({ save: { playerName: 'יונתן', currentStage: 8, log: [1, 2] },
+                        updatedAt: '2026-08-01T10:00:00Z' }));
+    r = await SYNC.peek();
+    assert(r.ok === true && r.save && r.save.currentStage === 8, 'A full slot peeks with the save');
+    assert(r.updatedAt === '2026-08-01T10:00:00Z', 'peek() reports when the slot was written');
+
+    window.fetch = () => Promise.reject(new Error('Failed to fetch'));
+    r = await SYNC.peek();
+    assert(r.ok === false && /fetch/i.test(r.reason),
+           'A dead server peeks as a reason, not a throw');
+
+    answering(jsonRes({ error: 'bad code' }, false));
+    r = await SYNC.peek();
+    assert(r.ok === false && r.reason === 'bad code',
+           'A rejected code surfaces the server’s own words');
+
+    // A look must not leave a mark: peek() never stamps a sync time and never
+    // records an error the parent would then see as a failed sync.
+    const cfg = SYNC.config();
+    assert(!cfg.lastAt, 'peek() never stamps a successful-sync time');
+    assert(!cfg.lastError, 'peek() never records a sync failure');
+
+    window.fetch = realFetch;
+  }
+
+  return { passed, failed };
+}
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { runTests, runAsyncTests };
