@@ -1404,39 +1404,95 @@ function renderSyncBox() {
     SFX.click();
   };
 
-  $('btn-sync-save').onclick = () => {
+  const say = (text, kind) => {
+    status.className = 'sync-status' + (kind ? ' ' + kind : '');
+    status.textContent = text;
+  };
+
+  /**
+   * Read the two fields, validate, store.
+   *
+   * Returns a reason string when it cannot, never a silent false: a settings
+   * box that does nothing and says nothing is indistinguishable from a broken
+   * one, and that is exactly how this button failed the first time it was used.
+   */
+  const commitFields = () => {
     const url  = $('sync-url').value.trim();
     const code = $('sync-code').value.trim().toUpperCase();
-    if (url && !SYNC.validUrl(url)) {
-      status.className = 'sync-status bad';
-      status.textContent = 'הַכְּתֹבֶת חַיֶּבֶת לְהַתְחִיל בְּ-https://';
-      return;
-    }
-    if (code && !SYNC.validCode(code)) {
-      status.className = 'sync-status bad';
-      status.textContent = 'קוֹד לֹא תָּקִין — לְפָחוֹת 16 תָּוִים, אוֹתִיּוֹת וְסִפְרוֹת.';
-      return;
-    }
+
+    if (!url && !code) return 'מַלֵּא אֶת כְּתֹבֶת הַשֶּׁרֶת וְאֶת הַקּוֹד — שְׁנֵיהֶם רֵיקִים.';
+    if (!url)  return 'חֲסֵרָה כְּתֹבֶת הַשֶּׁרֶת.';
+    if (!code) return 'חָסֵר קוֹד — לְחַץ "צוֹר קוֹד", אוֹ הַקְלֵד אֶת זֶה שֶׁל הַמַּכְשִׁיר הָאַחֵר.';
+    if (!SYNC.validUrl(url))   return 'הַכְּתֹבֶת חַיֶּבֶת לְהַתְחִיל בְּ-https:// — כְּפִי שֶׁהִיא כְּתוּבָה עַכְשָׁו הַדַּפְדְּפָן יַחְסֹם אוֹתָהּ.';
+    if (!SYNC.validCode(code)) return 'קוֹד לֹא תָּקִין — לְפָחוֹת 16 תָּוִים, אוֹתִיּוֹת וְסִפְרוֹת בִּלְבַד.';
+
     SYNC.setConfig({ url, code, lastError: '' });
-    renderSyncBox();
-    $('sync-status').textContent = 'נִשְׁמַר.';
+    $('sync-code').value = code;
+    return null;
+  };
+
+  $('btn-sync-save').onclick = () => {
+    const problem = commitFields();
+    if (problem) { say(problem, 'bad'); return; }
+    say('נִשְׁמַר. לְחַץ "סַנְכְּרֵן עַכְשָׁו".', 'good');
   };
 
   $('btn-sync-now').onclick = async () => {
-    if (!SYNC.enabled()) { $('btn-sync-save').click(); if (!SYNC.enabled()) return; }
-    status.className = 'sync-status';
-    status.textContent = 'מְסַנְכְרֵן...';
-    const res = await SYNC.sync(PROGRESS.load());
+    // Always take what is on screen. Requiring "save" first, and then doing
+    // nothing when it had not been pressed, is what made this button look dead.
+    const problem = commitFields();
+    if (problem) { say(problem, 'bad'); return; }
+
+    const btn = $('btn-sync-now');
+    btn.disabled = true;
+    say('מְסַנְכְרֵן...');
+
+    let res;
+    try {
+      res = await SYNC.sync(PROGRESS.load());
+    } catch (err) {
+      res = { ok: false, reason: err && err.message ? err.message : 'שְׁגִיאָה לֹא צְפוּיָה' };
+    }
+    btn.disabled = false;
+
     if (res.ok) {
       PROGRESS.save(res.save);
       saveData = res.save;
       SFX.rare();
       showParents(`סֻנְכְרַן — ${res.gained > 0 ? res.gained + ' תַּרְגִּילִים חֲדָשִׁים מִמַּכְשִׁיר אַחֵר' : 'הַכֹּל כְּבָר מְעֻדְכָּן'}.`);
-    } else {
-      status.className = 'sync-status bad';
-      status.textContent = 'לֹא הִצְלִיחַ: ' + res.reason;
+      return;
     }
+
+    say(explainSyncFailure(res.reason), 'bad');
   };
+}
+
+/**
+ * Turn a fetch failure into something a parent can act on.
+ *
+ * "Failed to fetch" is what the browser says for a blocked origin, a dead host
+ * and a typo alike — useless on its own. The wording below names the two or
+ * three things it is actually likely to be.
+ */
+function explainSyncFailure(reason) {
+  const raw = String(reason || '');
+  if (/failed to fetch|networkerror|load failed/i.test(raw)) {
+    return 'לֹא הִצְלַחְתִּי לְהַגִּיעַ לַשֶּׁרֶת. בְּדֹק שֶׁהַכְּתֹבֶת נְכוֹנָה, שֶׁיֵּשׁ אִינְטֶרְנֶט, ' +
+           'וְשֶׁהִדְבַּקְתָּ אֶת הַכְּתֹבֶת בִּמְלוֹאָהּ. (' + raw + ')';
+  }
+  if (/timeout|abort/i.test(raw)) {
+    return 'הַשֶּׁרֶת לֹא עָנָה בִּזְמַן. נַסֵּה שׁוּב בְּעוֹד רֶגַע.';
+  }
+  if (/bad code/i.test(raw)) {
+    return 'הַשֶּׁרֶת דָּחָה אֶת הַקּוֹד. צוֹר קוֹד חָדָשׁ וְהַשְׁתֵּמַשׁ בְּאוֹתוֹ אֶחָד בְּכׇל מַכְשִׁיר.';
+  }
+  if (/HTTP 404/i.test(raw)) {
+    return 'הַכְּתֹבֶת מַחְזִירָה 404 — כְּנִרְאֶה חָסֵר חֵלֶק מִמֶּנָּה, אוֹ שֶׁהַשֶּׁרֶת לֹא בַּמָּקוֹם הַזֶּה.';
+  }
+  if (/not a game save/i.test(raw)) {
+    return 'הַשֶּׁרֶת דָּחָה אֶת הַשְּׁמִירָה. נַסֵּה לְשַׂחֵק מִשְׁמֶרֶת אַחַת וְאָז לְסַנְכְרֵן.';
+  }
+  return 'לֹא הִצְלִיחַ: ' + raw;
 }
 
 /**
