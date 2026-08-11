@@ -118,6 +118,33 @@ const PROGRESS = {
   },
 
   /**
+   * Put the child on a port directly.
+   *
+   * The game earns its way up one port at a time, which is right for a child
+   * and wrong for a parent holding a device whose save does not match the boy:
+   * a browser that lost its storage, a machine he never played on, or a level
+   * that turned out to be far too easy. Replaying six ports he has outgrown is
+   * how a child stops wanting to open the game at all.
+   *
+   * Everything below the target is marked passed, so the map shows those ports
+   * as practice rather than locked doors — they stay open, which matters,
+   * because "not perfect at 0–20 yet" and "bored by port 3" are both true at
+   * once. Nothing collected is touched: planes, log and flight hours survive.
+   */
+  setStage(data, stageId) {
+    const wanted = Math.round(Number(stageId));
+    const to = Math.max(1, Math.min(this.maxStage(), Number.isFinite(wanted) ? wanted : 1));
+    for (let i = 1; i < to; i++) {
+      if (!data.stagesCompleted.includes(i)) data.stagesCompleted.push(i);
+    }
+    data.currentStage = to;
+    // Half a shift's credit towards the next port would be a lie after a jump.
+    data.currentStageShifts = 0;
+    data.rank = this.getRankForStage(to).name;
+    return data;
+  },
+
+  /**
    * Register a day of play and return the streak that should be shown.
    * Same day → unchanged. Yesterday → +1. Anything older → back to 1.
    * A broken streak is never announced; the counter simply starts again.

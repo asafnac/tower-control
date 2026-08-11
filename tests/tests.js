@@ -68,6 +68,53 @@ function runTests() {
   PROGRESS.completeStage(data, MAX_STAGE);
   assert(data.currentStage === MAX_STAGE, `Stage capped at ${MAX_STAGE}`);
 
+  // ===== SETTING THE PORT BY HAND =====
+  // The parent's escape hatch when the save does not match the child. It must
+  // move him, open everything below, and take nothing away.
+  data = PROGRESS._default();
+  data.planesCollected = [3, 9];
+  data.log = [{ t: 1, a: 4, b: 3, op: '+', ok: 1, ms: 900 }];
+  data.flightHours = 1840;
+  data.currentStageShifts = 1;
+  PROGRESS.setStage(data, 8);
+  assert(data.currentStage === 8, 'setStage(8) puts him on port 8');
+  for (let i = 1; i <= 7; i++) {
+    assert(data.stagesCompleted.includes(i), `Port ${i} is open for practice after the jump`);
+  }
+  assert(!data.stagesCompleted.includes(8), 'The port he is standing on is not marked passed');
+  assert(data.currentStageShifts === 0, 'A jump does not carry half a shift of credit');
+  assert(data.planesCollected.length === 2, 'A jump keeps the planes');
+  assert(data.log.length === 1, 'A jump keeps the log');
+  assert(data.flightHours === 1840, 'A jump keeps the flight hours');
+  assert(data.rank === PROGRESS.getRankForStage(8).name, 'The rank follows the new port');
+
+  // Down as well as up: a port that turned out to be too hard.
+  PROGRESS.setStage(data, 3);
+  assert(data.currentStage === 3, 'setStage can move him back down');
+  assert(data.stagesCompleted.includes(7), 'Moving down does not erase what he passed');
+
+  // Out-of-range and junk must land somewhere sane, never on a port that has
+  // no questions — that would be a blank screen for the child.
+  assert(PROGRESS.setStage(PROGRESS._default(), 0).currentStage === 1, 'Port 0 clamps to 1');
+  assert(PROGRESS.setStage(PROGRESS._default(), -5).currentStage === 1, 'A negative port clamps to 1');
+  assert(PROGRESS.setStage(PROGRESS._default(), 999).currentStage === MAX_STAGE,
+         `A port past the end clamps to ${MAX_STAGE}`);
+  assert(PROGRESS.setStage(PROGRESS._default(), 'nonsense').currentStage === 1, 'Junk clamps to 1');
+  assert(PROGRESS.setStage(PROGRESS._default(), null).currentStage === 1, 'null clamps to 1');
+  assert(PROGRESS.setStage(PROGRESS._default(), 7.6).currentStage === 8, 'A fraction rounds to a real port');
+  CURRICULUM.stages.forEach(s => {
+    const moved = PROGRESS.setStage(PROGRESS._default(), s.id);
+    assert(CURRICULUM.stages.some(x => x.id === moved.currentStage),
+           `setStage(${s.id}) always lands on a port that exists`);
+  });
+
+  // And the caveat the UI promises to tell the parent about: the merge keeps
+  // the higher port, so lowering it is a local decision until he stops syncing.
+  const high = Object.assign(PROGRESS._default(), { currentStage: 8, log: [] });
+  const low  = PROGRESS.setStage(Object.assign(PROGRESS._default(), { log: [] }), 3);
+  assert(PROGRESS.merge(low, high).currentStage === 8, 'A merge restores the higher port');
+  assert(PROGRESS.merge(high, low).currentStage === 8, 'And does so in either order');
+
   // ===== DAY STREAK =====
   // A child who plays two days running must see 2, and one who skips a day must
   // see 1 — never 0, and never a message about what he lost.

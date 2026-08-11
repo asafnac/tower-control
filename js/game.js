@@ -1202,7 +1202,12 @@ function showMap() {
   container.innerHTML = '';
 
   CURRICULUM.stages.forEach(stage => {
-    const completed = saveData.stagesCompleted.includes(stage.id);
+    // A port below the current one is behind him whether or not it was ever
+    // ticked off — a save moved between devices, or a port set by hand, can
+    // leave the list incomplete, and a door he can walk through must never be
+    // drawn with a padlock on it.
+    const completed = saveData.stagesCompleted.includes(stage.id) ||
+                      stage.id < saveData.currentStage;
     const current   = !completed && (stage.id === saveData.currentStage);
     const locked    = stage.id > saveData.currentStage;
 
@@ -1272,10 +1277,10 @@ function showParents(notice) {
     ['נָכוֹן בַּנִּסָּיוֹן הָרִאשׁוֹן', rep.total ? rep.firstTryPct + '%' : '—'],
     ['זְמַן חֲצִיוֹנִי לִתְשׁוּבָה',    rep.total ? rep.medianSeconds + ' שְׁנִיּוֹת' : '—'],
     ['נֶחְשְׂפָה תְּשׁוּבָה',           rep.total ? rep.revealPct + '%' : '—'],
-    ['נָמֵל נוֹכְחִי',                  `${saveData.currentStage} מִתּוֹךְ ${PROGRESS.maxStage()}`],
+    ['נָמֵל נוֹכְחִי',                  `${saveData.currentStage} מִתּוֹךְ ${PROGRESS.maxStage()}`, 'pcard-stage'],
   ];
-  $('parents-summary').innerHTML = cards.map(([k, v]) =>
-    `<div class="pcard"><span class="pcard-v">${v}</span><span class="pcard-k">${k}</span></div>`).join('');
+  $('parents-summary').innerHTML = cards.map(([k, v, id]) =>
+    `<div class="pcard"><span class="pcard-v"${id ? ` id="${id}"` : ''}>${v}</span><span class="pcard-k">${k}</span></div>`).join('');
 
   // Skills, in teaching order, skipping what he has not met yet.
   const seen = rep.skills.filter(s => s.samples > 0);
@@ -1305,6 +1310,7 @@ function showParents(notice) {
   // A notice survives the re-render that follows an import — otherwise the
   // confirmation the parent needs to read vanishes the moment it appears.
   $('parents-import-msg').textContent = notice || '';
+  renderStagePicker();
   renderSyncBox();
   renderOfflineBox();
   $('btn-parents-export').onclick = () => exportReport(rep);
@@ -1325,6 +1331,68 @@ function exportReport() {
   a.download = `tower-control-${PROGRESS.today()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+// ===== STARTING PORT =====
+/**
+ * Let the parent put the child where he actually is.
+ *
+ * Deleting the early ports would do this too, and would be the wrong tool: the
+ * boy is not finished with 0–20, and port 7 is the ladder that port 8 leans on.
+ * A port number he can change in two seconds — in either direction, as often as
+ * he likes — gives the same result and takes nothing away.
+ */
+function renderStagePicker() {
+  const sel = $('stage-picker');
+  const msg = $('stage-msg');
+
+  sel.innerHTML = '';
+  CURRICULUM.stages.forEach(stage => {
+    const opt = document.createElement('option');
+    opt.value = String(stage.id);
+    opt.textContent = `נָמֵל ${stage.id} — ${stage.title}`;
+    sel.appendChild(opt);
+  });
+  sel.value = String(saveData.currentStage);
+
+  msg.className = 'sync-status';
+  msg.textContent = '';
+
+  $('btn-stage-set').onclick = () => {
+    const to   = Number(sel.value);
+    const from = saveData.currentStage;
+
+    if (to === from) {
+      msg.className = 'sync-status';
+      msg.textContent = `הוּא כְּבָר בְּנָמֵל ${to}.`;
+      return;
+    }
+
+    PROGRESS.setStage(saveData, to);
+    PROGRESS.save(saveData);
+    SFX.rare();
+
+    const title = (CURRICULUM.stages.find(s => s.id === to) || {}).title || '';
+    let text = `נִקְבַּע — הַמִּשְׂחָק יִפָּתַח בְּנָמֵל ${to}: ${title}. הַנְּמָלִים 1–${to - 1} פְּתוּחִים לְתִרְגּוּל מֵהַמַּפָּה.`;
+    if (to === 1) text = 'נִקְבַּע — הַמִּשְׂחָק יִפָּתַח בְּנָמֵל 1.';
+
+    // Honest about the one thing that does not travel: the merge always keeps
+    // the higher port, so lowering it here is a local decision. Saying so now
+    // beats him discovering it tomorrow and losing trust in the whole thing.
+    if (to < from && SYNC.enabled()) {
+      text += ' שִׂים לֵב: בַּסִּנְכְּרוּן הַבָּא הוּא יַחֲזֹר לְנָמֵל ' + from +
+              ', כִּי הַמִּזּוּג תָּמִיד שׁוֹמֵר עַל הַגָּבוֹהַּ. לְתִרְגּוּל נָמוּךְ — פְּתַח אוֹתוֹ מֵהַמַּפָּה.';
+    }
+
+    msg.className = 'sync-status good';
+    msg.textContent = text;
+
+    // The headline card above is now describing a different port.
+    const card = $('pcard-stage');
+    if (card) card.textContent = `${to} מִתּוֹךְ ${PROGRESS.maxStage()}`;
+
+    if (SYNC.enabled()) SYNC.syncInBackground(saveData);
+  };
 }
 
 // ===== OFFLINE =====
