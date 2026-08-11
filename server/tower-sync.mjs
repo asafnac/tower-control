@@ -111,6 +111,8 @@ const server = http.createServer(async (req, res) => {
     }
     // A save with no log is either a bug or something else entirely. Refusing it
     // means a broken client cannot wipe a year of history with one bad POST.
+    // The client guarantees the field exists from its very first load — an empty
+    // array is fine and is what a new device sends.
     if (!save || typeof save !== 'object' || !Array.isArray(save.log)) {
       return send(res, 400, { error: 'not a game save' }, origin);
     }

@@ -63,6 +63,11 @@ const PROGRESS = {
       soundOn: true,
       mission: null,
       bridgeTaught: false,   // has the ladder introduced itself once?
+      // Present from the very first load, empty or not. The sync server refuses
+      // a body with no log — a sane guard against a broken client wiping a
+      // year of history — and a save that only grew this field once a question
+      // had been answered made the very first sync from a new device fail.
+      log: [],
     };
   },
 

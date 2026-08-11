@@ -25,6 +25,10 @@ function runTests() {
   assert(d.shiftsCompleted === 0, 'Default shiftsCompleted should be 0');
   assert(d.flightHours === 0, 'Default flightHours should be 0');
   assert(d.soundOn === true, 'Sound on by default');
+  // The sync server refuses a body without a log array. A save that only grew
+  // that field after the first answer made the very first sync from a new
+  // device fail — which is precisely when a parent is setting sync up.
+  assert(Array.isArray(d.log), 'A fresh save carries a log array, so it is syncable before any play');
 
   // getRankForStage — ranks only ever go up, and never below the first one.
   assert(PROGRESS.getRankForStage(1).name === 'מִתְלַמֵּד', 'Stage 1 = מִתְלַמֵּד');

@@ -119,6 +119,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
     // A save without a log is either a bug or something else entirely; refusing
     // it means a broken client cannot wipe a year of history with one bad POST.
+    // The client guarantees the field exists from its very first load — an empty
+    // array is fine and is what a new device sends.
     if (!array_key_exists('log', $save) || !is_array($save['log'])) {
         reply(400, ['error' => 'not a game save']);
     }
