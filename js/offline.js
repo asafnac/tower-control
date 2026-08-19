@@ -29,6 +29,49 @@ const OFFLINE = {
     try { return await navigator.serviceWorker.ready; } catch (e) { return null; }
   },
 
+  // ===== INSTALLING TO THE HOME SCREEN =====
+  // Chrome will offer this in a menu, eventually, several items down, under a
+  // name that changes between versions — and not at all inside the in-app
+  // browser that a link from a chat opens in. A parent standing in front of a
+  // tablet should not have to hunt for it. The browser hands us the prompt; we
+  // put it behind a button in the game where it can be found.
+  _installEvent: null,
+
+  /** True once the browser has told us it is willing to install this page. */
+  installable() { return !!this._installEvent; },
+
+  /** Already running as an installed app — nothing left to offer. */
+  installed() {
+    try {
+      return (window.matchMedia &&
+              (window.matchMedia('(display-mode: standalone)').matches ||
+               window.matchMedia('(display-mode: fullscreen)').matches)) ||
+             window.navigator.standalone === true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  /**
+   * Show the browser's own install dialog.
+   *
+   * The saved event is single-use: once prompted it is spent, whatever the
+   * child's parent then taps, so it is cleared before the await rather than
+   * after — a second press on a dead event throws.
+   */
+  async promptInstall() {
+    const evt = this._installEvent;
+    if (!evt) return { ok: false, reason: this.installed() ? 'already-installed' : 'not-offered' };
+    this._installEvent = null;
+    try {
+      evt.prompt();
+      const choice = await evt.userChoice;
+      return { ok: choice && choice.outcome === 'accepted', outcome: choice && choice.outcome };
+    } catch (e) {
+      return { ok: false, reason: e.message || 'failed' };
+    }
+  },
+
   /**
    * Every clip the game could ever need, derived from the curriculum itself.
    *
@@ -103,5 +146,20 @@ const OFFLINE = {
     location.reload();
   },
 };
+
+// Chrome fires this once, early, and only if it has decided the page qualifies.
+// It has to be caught at load: by the time the parent opens the report the
+// event is long gone, and an uncaught one shows Chrome's own banner instead.
+if (typeof window !== 'undefined' && window.addEventListener) {
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    OFFLINE._installEvent = e;
+    // The report screen may already be open and showing "not offered".
+    if (typeof renderInstallButton === 'function') {
+      try { renderInstallButton(); } catch (err) { /* the report is not open */ }
+    }
+  });
+  window.addEventListener('appinstalled', () => { OFFLINE._installEvent = null; });
+}
 
 if (typeof module !== 'undefined' && module.exports) module.exports = OFFLINE;

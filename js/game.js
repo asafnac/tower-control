@@ -1313,6 +1313,9 @@ function showParents(notice) {
   renderStagePicker();
   renderSyncBox();
   renderOfflineBox();
+  // Deliberately not inside renderOfflineBox: that one gives up early when the
+  // page cannot hold a service worker, and installing is a separate offer.
+  renderInstallButton();
   $('btn-parents-export').onclick = () => exportReport(rep);
   $('btn-parents-import').onclick = () => $('parents-file').click();
   $('parents-file').onchange = e => importSave(e.target.files[0]);
@@ -1443,6 +1446,64 @@ async function renderOfflineBox() {
     if (confirm('לְנַקּוֹת אֶת הַמַּטְמוֹן וְלִטְעֹן מֵחָדָשׁ? הַהִתְקַדְּמוּת וְהַמְּטוֹסִים לֹא יִפָּגְעוּ.')) {
       OFFLINE.reset();
     }
+  };
+}
+
+/**
+ * A one-tap install, because the browser's own menu item is a maze.
+ *
+ * Chrome buries it several items down under a name that moves between
+ * versions, and an in-app browser — what a link tapped inside a chat opens —
+ * does not offer it at all. When the browser is willing, it tells us; all this
+ * does is put that offer somewhere a parent can actually find it.
+ */
+function renderInstallButton() {
+  const btn = $('btn-install');
+  const msg = $('install-msg');
+  if (!btn) return;
+
+  msg.className = 'sync-status';
+
+  if (OFFLINE.installed()) {
+    btn.classList.add('hidden');
+    msg.textContent = 'הַמִּשְׂחָק כְּבָר מֻתְקָן כְּאַפְּלִיקַצְיָה בַּמַּכְשִׁיר הַזֶּה. ✅';
+    return;
+  }
+
+  if (!OFFLINE.installable()) {
+    // Not a failure, and not worth a scary sentence: iOS never offers this at
+    // all, and Chrome only does so after the page has been visited once.
+    btn.classList.add('hidden');
+    msg.textContent = 'הַדַּפְדְּפָן הַזֶּה לֹא מַצִּיעַ הַתְקָנָה. בְּאַנְדְּרוֹאִיד — פְּתַח בְּכְרוֹם וְרַעֲנֵן. ' +
+                      'בְּאַייפוֹן — שִׁתּוּף ⬆️ ← "הוֹסֵף לְמָסָךְ הַבַּיִת".';
+    return;
+  }
+
+  btn.classList.remove('hidden');
+  msg.textContent = 'לְחִיצָה אַחַת — אַייקוֹן בְּמָסָךְ הַבַּיִת וּפְתִיחָה בְּמָסָךְ מָלֵא.';
+
+  btn.onclick = async () => {
+    btn.disabled = true;
+    const res = await OFFLINE.promptInstall();
+    btn.disabled = false;
+
+    if (res.ok) {
+      SFX.rare();
+      btn.classList.add('hidden');
+      msg.className = 'sync-status good';
+      msg.textContent = 'הֻתְקַן! הָאַייקוֹן שֶׁל הַמִּגְדָּל נִמְצָא עַכְשָׁו בְּמָסָךְ הַבַּיִת.';
+      return;
+    }
+
+    if (res.outcome === 'dismissed') {
+      // He can ask again, but the browser's offer was spent on that dialog.
+      btn.classList.add('hidden');
+      msg.textContent = 'בֻּטַּל. רַעֲנֵן אֶת הַדַּף כְּדֵי לְנַסּוֹת שׁוּב.';
+      return;
+    }
+
+    msg.className = 'sync-status bad';
+    msg.textContent = 'לֹא הִצְלַחְתִּי לִפְתֹּחַ אֶת חַלּוֹן הַהַתְקָנָה. נַסֵּה מֵהַתַּפְרִיט שֶׁל הַדַּפְדְּפָן.';
   };
 }
 
